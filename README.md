@@ -6,7 +6,7 @@ To use this library, you need to first convert the events to hdf5 file format. T
 ```python rosbag_to_h5.py --output_dir /tmp/my_rosbag.bag --event_topic /dvs/events```
 Obviously for this to work, you will need to have ros installed.
 
-If you just want to get going, you can also download a couple of h5 event sequences from here (slider_depth from Mueggler, The Event-Camera Dataset and Simulator, IJRR17 and a super simple sequence I recorded myself).
+If you just want to get going, you can also download a couple of h5 event sequences from [here](https://drive.google.com/open?id=1z3Gjn4HLkHhgFeoa2viC-fuldUCZQGUL) (slider_depth from Mueggler, The Event-Camera Dataset and Simulator, IJRR17 and a super simple sequence I recorded myself).
 
 To run a quick demo (show the cost landscape and run through a bunch of objective functions) go to utils and run 
 ```python events_cmax.py /path/to/my/events.h5```
