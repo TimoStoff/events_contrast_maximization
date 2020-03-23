@@ -14,3 +14,15 @@ To implement your own objective functions, check out `utils/objectives.py` to im
 
 ## Dependencies
 You need to be running at least Python 3 and have PyTorch installed (GPU not necessary). 
+
+## Citation
+If you use any of this code, please cite: T. Stoffregen and L. Kleeman, Event Cameras, Contrast Maximization and Reward Functions: An Analysis, The IEEE Conference on Computer Vision and Pattern Recognition (CVPR), June 2019.
+```
+@InProceedings{Stoffregen19cvpr,
+author = {Stoffregen, Timo and Kleeman, Lindsay},
+title = {Event Cameras, Contrast Maximization and Reward Functions: An Analysis},
+booktitle = {The IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},
+month = {June},
+year = {2019}
+} 
+```
