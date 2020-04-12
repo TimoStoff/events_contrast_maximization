@@ -2,41 +2,56 @@ import numpy as np
 import torch
 from event_utils import *
 from scipy.ndimage.filters import gaussian_filter
+from abc import ABC, abstractmethod
 
-#class template_objective:
-#"""
-#template for an objective function.
-#"""
-#
-#    def __init__(self):
-#        self.name = "template"
-#        self.use_polarity = True
-#        self.has_derivative = True
-#        self.default_blur=1.0
-#
-#    def evaluate_function(self, params=None, xs=None, ys=None, ts=None, ps=None,
-#            warpfunc=None, img_size=None, blur_sigma=None, showimg=False, iwe=None):
-#        if iwe is None:
-#            iwe, d_iwe = get_iwe(params, xs, ys, ts, ps, warpfunc, img_size, use_polarity=self.use_polarity, compute_gradient=False)
-#        blur_sigma=self.default_blur if blur_sigma is None else blur_sigma
-#        if blur_sigma > 0:
-#            iwe = gaussian_filter(iwe, blur_sigma)
-#        loss = None #Iimplement loss here
-#        return loss
-#
-#    def evaluate_gradient(self, params=None, xs=None, ys=None, ts=None, ps=None,
-#            warpfunc=None, img_size=None, blur_sigma=None, showimg=False, iwe=None, d_iwe=None):
-#        if iwe is None or d_iwe is None:
-#            iwe, d_iwe = get_iwe(params, xs, ys, ts, ps, warpfunc, img_size, use_polarity=self.use_polarity, compute_gradient=True)
-#        blur_sigma=self.default_blur if blur_sigma is None else blur_sigma
-#        if blur_sigma > 0:
-#            iwe = gaussian_filter(iwe, blur_sigma)
-#            d_iwe = gaussian_filter(d_iwe, blur_sigma)
-#        gradient = []
-#        for grad_dim in range(d_iwe.shape[0]):
-#            gradient.append(np.mean(d_iwe[grad_dim]))#Implement gradient here
-#        grad = np.array(gradient)
-#        return grad
+class objective_function(ABC):
+
+    def __init__(self, name="template", use_polarity=True,
+            has_derivative=True, default_blur=1.0):
+        self.name = name
+        self.use_polarity = use_polarity
+        self.has_derivative = has_derivative
+        self.default_blur = default_blur
+        super().__init__()
+
+    @abstractmethod
+    def evaluate_function(self, params=None, xs=None, ys=None, ts=None, ps=None,
+            warpfunc=None, img_size=None, blur_sigma=None, showimg=False, iwe=None):
+        """
+        Define the warp function. Either give the params and the events or give a
+        precomputed iwe (if xs, ys, ts, ps are given, iwe is not necessary).
+        """
+        #if iwe is None:
+        #    iwe, d_iwe = get_iwe(params, xs, ys, ts, ps, warpfunc, img_size,
+        #            use_polarity=self.use_polarity, compute_gradient=False)
+        #blur_sigma=self.default_blur if blur_sigma is None else blur_sigma
+        #if blur_sigma > 0:
+        #    iwe = gaussian_filter(iwe, blur_sigma)
+        #loss = compute_loss_here...
+        #return loss
+        pass
+
+    @abstractmethod
+    def evaluate_gradient(self, params=None, xs=None, ys=None, ts=None, ps=None,
+            warpfunc=None, img_size=None, blur_sigma=None, showimg=False, iwe=None, d_iwe=None):
+        """
+        If your warp function has it, define the gradient (otherwise set has_derivative to False
+        and numeric grads will be used). Either give the params and the events or give a
+        precomputed iwe and d_iwe (if xs, ys, ts, ps are given, iwe, d_iwe is not necessary).
+        """
+        #if iwe is None or d_iwe is None:
+        #    iwe, d_iwe = get_iwe(params, xs, ys, ts, ps, warpfunc, img_size,
+        #            use_polarity=self.use_polarity, compute_gradient=True)
+        #blur_sigma=self.default_blur if blur_sigma is None else blur_sigma
+        #if blur_sigma > 0:
+        #    d_iwe = gaussian_filter(d_iwe, blur_sigma)
+
+        #gradient = []
+        #for grad_dim in range(d_iwe.shape[0]):
+        #    gradient.append(compute_gradient_here...)
+        #grad = np.array(gradient)
+        #return grad
+        pass
 
 def get_iwe(params, xs, ys, ts, ps, warpfunc, img_size, compute_gradient=False, use_polarity=True):
     """
@@ -55,11 +70,10 @@ def get_iwe(params, xs, ys, ts, ps, warpfunc, img_size, compute_gradient=False, 
     return iwe, iwe_drv
 
 
-class variance_objective:
+class variance_objective(objective_function):
     """
     Variance objective from 'Gallego, Accurate Angular Velocity Estimation with an Event Camera, RAL'17'
     """
-
     def __init__(self):
         self.use_polarity = True
         self.name = "variance"
@@ -98,7 +112,7 @@ class variance_objective:
         grad = np.array(gradient)
         return -grad
 
-class rms_objective:
+class rms_objective(objective_function):
     """
     Root mean squared objective
     """
@@ -140,7 +154,7 @@ class rms_objective:
         grad = np.array(gradient)
         return -grad
 
-class sos_objective:
+class sos_objective(objective_function):
     """
     Sum of squares objective (Stoffregen et al, Event Cameras, Contrast
     Maximization and Reward Functions: an Analysis, CVPR19)
@@ -183,7 +197,7 @@ class sos_objective:
         grad = np.array(gradient)
         return -grad
 
-class soe_objective:
+class soe_objective(objective_function):
     """
     Sum of exponentials objective (Stoffregen et al, Event Cameras, Contrast
     Maximization and Reward Functions: an Analysis, CVPR19)
@@ -226,7 +240,7 @@ class soe_objective:
         grad = np.array(gradient)
         return -grad
 
-class moa_objective:
+class moa_objective(objective_function):
     """
     Max of accumulations objective (Stoffregen et al, Event Cameras, Contrast
     Maximization and Reward Functions: an Analysis, CVPR19)
@@ -256,7 +270,7 @@ class moa_objective:
         """
         return None
 
-class isoa_objective:
+class isoa_objective(objective_function):
     """
     Inverse sum of accumulations objective (Stoffregen et al, Event Cameras, Contrast
     Maximization and Reward Functions: an Analysis, CVPR19)
@@ -303,7 +317,7 @@ class isoa_objective:
         grad = np.array(gradient)
         return -grad
 
-class sosa_objective:
+class sosa_objective(objective_function):
     """
     Sum of Supressed Accumulations objective (Stoffregen et al, Event Cameras, Contrast
     Maximization and Reward Functions: an Analysis, CVPR19)
@@ -349,7 +363,7 @@ class sosa_objective:
         grad = np.array(gradient)
         return -grad
 
-class zhu_timestamp_objective:
+class zhu_timestamp_objective(objective_function):
     """
     Squared timestamp images objective (Zhu et al, Unsupervised Event-based
     Learning of Optical Flow, Depth, and Egomotion, CVPR19)
@@ -385,7 +399,7 @@ class zhu_timestamp_objective:
         """
         return None
 
-class r1_objective:
+class r1_objective(objective_function):
     """
     R1 objective (Stoffregen et al, Event Cameras, Contrast
     Maximization and Reward Functions: an Analysis, CVPR19)

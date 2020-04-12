@@ -1,13 +1,28 @@
 import numpy as np
 import torch
 from event_utils import *
+from abc import ABC, abstractmethod
 
-class linvel_warp:
+class warp_function(ABC):
+
+    def __init__(self, name, dims):
+        self.name = name
+        self.dims = dims
+        super().__init__()
+
+    @abstractmethod
+    def warp(self, xs, ys, ts, ps, t0, params, compute_grad=False):
+        #Warp the events...
+        #if compute_grad:
+        #   compute the jacobian of the warp function
+        pass
+
+class linvel_warp(warp_function):
     """
     This class implements linear velocity warping (global optic flow)
     """
     def __init__(self):
-        self.dims = 2
+        warp_function.__init__(self, 'linvel_warp', 2)
 
     def warp(self, xs, ys, ts, ps, t0, params, compute_grad=False):
         dt = ts-t0
