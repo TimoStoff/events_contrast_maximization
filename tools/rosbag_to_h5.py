@@ -49,10 +49,10 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
         xs, ys, ts, ps = [], [], [], []
         max_buffer_size = 1000000
         events_file = h5py.File(output_path, 'w')
-        event_xs = events_file.create_dataset("events/x", (0, ), dtype=np.dtype(np.int16), maxshape=(None, ), chunks=True)
-        event_ys = events_file.create_dataset("events/y", (0, ), dtype=np.dtype(np.int16), maxshape=(None, ), chunks=True)
+        event_xs = events_file.create_dataset("events/xs", (0, ), dtype=np.dtype(np.int16), maxshape=(None, ), chunks=True)
+        event_ys = events_file.create_dataset("events/ys", (0, ), dtype=np.dtype(np.int16), maxshape=(None, ), chunks=True)
         event_ts = events_file.create_dataset("events/ts", (0, ), dtype=np.dtype(np.float64), maxshape=(None, ), chunks=True)
-        event_ps = events_file.create_dataset("events/p", (0, ), dtype=np.dtype(np.bool_), maxshape=(None, ), chunks=True)
+        event_ps = events_file.create_dataset("events/ps", (0, ), dtype=np.dtype(np.bool_), maxshape=(None, ), chunks=True)
         if num_img_msgs > 0:
             image_dset = events_file.create_group("images")
             image_dset.attrs['num_images'] = num_img_msgs
