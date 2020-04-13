@@ -6,21 +6,22 @@ import matplotlib.pyplot as plt
 import cv2 as cv
 import torch
 
-def binary_search_h5_timestamp(hdf_path, l, r, x):
+def binary_search_h5_timestamp(hdf_path, l, r, x, side='left'):
     f = h5py.File(hdf_path, 'r')
-    iters = 0
     if r is None:
         r = f.attrs['num_events']-1
     while l <= r:
-        iters+=1
         mid = l + (r - l)//2;
-        if f['events/ts'][mid] == x:
+        midval = f['events/ts'][mid]
+        if midval == x:
             return mid
-        elif f['events/ts'][mid] < x:
+        elif midval < x:
             l = mid + 1
         else:
             r = mid - 1
-    return -1
+    if side == 'left':
+        return l
+    return r
 
 def read_h5_events(hdf_path):
     f = h5py.File(hdf_path, 'r')
