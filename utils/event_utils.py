@@ -8,12 +8,20 @@ import torch
 
 def read_h5_events(hdf_path):
     f = h5py.File(hdf_path, 'r')
-    events = np.stack((f['events/x'][:], f['events/y'][:], f['events/ts'][:], np.where(f['events/p'][:], 1, -1)), axis=1)
+    if 'events/x' in f:
+        #legacy
+        events = np.stack((f['events/x'][:], f['events/y'][:], f['events/ts'][:], np.where(f['events/p'][:], 1, -1)), axis=1)
+    else:
+        events = np.stack((f['events/xs'][:], f['events/ys'][:], f['events/ts'][:], np.where(f['events/ps'][:], 1, -1)), axis=1)
     return events
 
 def read_h5_event_components(hdf_path):
     f = h5py.File(hdf_path, 'r')
-    return f['events/x'][:], f['events/y'][:], f['events/ts'][:], np.where(f['events/p'][:], 1, -1)
+    if 'events/x' in f:
+        #legacy
+        return (f['events/x'][:], f['events/y'][:], f['events/ts'][:], np.where(f['events/p'][:], 1, -1))
+    else:
+        return (f['events/xs'][:], f['events/ys'][:], f['events/ts'][:], np.where(f['events/ps'][:], 1, -1))
 
 def plot_image(image, lognorm=False, cmap='gray'):
     if lognorm:
