@@ -6,6 +6,22 @@ import matplotlib.pyplot as plt
 import cv2 as cv
 import torch
 
+def binary_search_h5_timestamp(hdf_path, l, r, x):
+    f = h5py.File(hdf_path, 'r')
+    iters = 0
+    if r is None:
+        r = f.attrs['num_events']-1
+    while l <= r:
+        iters+=1
+        mid = l + (r - l)//2;
+        if f['events/ts'][mid] == x:
+            return mid
+        elif f['events/ts'][mid] < x:
+            l = mid + 1
+        else:
+            r = mid - 1
+    return -1
+
 def read_h5_events(hdf_path):
     f = h5py.File(hdf_path, 'r')
     events = np.stack((f['events/x'][:], f['events/y'][:], f['events/ts'][:], np.where(f['events/p'][:], 1, -1)), axis=1)
@@ -378,7 +394,7 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     device = 'cpu'
 
-    test_loop = 1
+    test_loop = 100
     s=80000
     e=s+150000
     bins = 5
@@ -392,6 +408,20 @@ if __name__ == "__main__":
         pt = pt.float().to(device)
     end = time.time()
     print("conversion to torch: time elapsed  = {:0.5f}".format((end-start)/test_loop))
+
+    start = time.time()
+    t0 = ts[len(ts)-1] #worst case
+    for i in range(test_loop):
+       idx = binary_search_h5_timestamp(args.path, 0, None, t0)
+    end = time.time()
+    print("binary search of hdf5 (idx={}): time elapsed  = {:0.5f}".format(idx, (end-start)/test_loop))
+
+    start = time.time()
+    t0 = ts[len(ts)-1] #worst case
+    for i in range(test_loop):
+        idx = np.searchsorted(ts, t0)
+    end = time.time()
+    print("binary search of np timestamps (idx={}): time elapsed  = {:0.5f}".format(idx, (end-start)/test_loop))
 
     start = time.time()
     for i in range(test_loop):
