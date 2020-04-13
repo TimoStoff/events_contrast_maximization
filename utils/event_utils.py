@@ -47,6 +47,18 @@ def plot_image(image, lognorm=False, cmap='gray'):
     plt.imshow(image, cmap=cmap)
     plt.show()
 
+def plot_voxel_grid(voxelgrid, cmap='gray'):
+    images = []
+    splitter = np.ones((voxelgrid.shape[1], 2))*np.max(voxelgrid)
+    for image in voxelgrid:
+        images.append(image)
+        images.append(splitter)
+    images.pop()
+    sidebyside = np.hstack(images)
+    sidebyside = cv.normalize(sidebyside, None, 0, 1.0, cv.NORM_MINMAX)
+    plt.imshow(sidebyside, cmap=cmap)
+    plt.show()
+
 def events_bounds_mask(xs, ys, x_min, x_max, y_min, y_max):
     """
     Get a mask of the events that are within the given bounds
@@ -237,6 +249,7 @@ def events_to_image_torch(xs, ys, ps,
         clipy = img_size[0] if interpolation is None and padding==False else img_size[0]-1
         mask = torch.where(xs>=clipx, zero_v, ones_v)*torch.where(ys>=clipy, zero_v, ones_v)
 
+    img = torch.zeros(img_size).to(device)
     if interpolation == 'bilinear' and xs.dtype is not torch.long and xs.dtype is not torch.long:
         pxs = xs.floor()
         pys = ys.floor()
@@ -245,7 +258,6 @@ def events_to_image_torch(xs, ys, ps,
         pxs = (pxs*mask).long()
         pys = (pys*mask).long()
         masked_ps = ps*mask
-        img = torch.zeros(img_size).to(device)
         interpolate_to_image(pxs, pys, dxs, dys, masked_ps, img)
     else:
         if xs.dtype is not torch.long:
