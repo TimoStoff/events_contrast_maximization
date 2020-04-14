@@ -6,6 +6,23 @@ import matplotlib.pyplot as plt
 import cv2 as cv
 import torch
 
+def binary_search_h5_timestamp(hdf_path, l, r, x, side='left'):
+    f = h5py.File(hdf_path, 'r')
+    if r is None:
+        r = f.attrs['num_events']-1
+    while l <= r:
+        mid = l + (r - l)//2;
+        midval = f['events/ts'][mid]
+        if midval == x:
+            return mid
+        elif midval < x:
+            l = mid + 1
+        else:
+            r = mid - 1
+    if side == 'left':
+        return l
+    return r
+
 def read_h5_events(hdf_path):
     f = h5py.File(hdf_path, 'r')
     if 'events/x' in f:
@@ -29,6 +46,18 @@ def plot_image(image, lognorm=False, cmap='gray'):
         cmap='viridis'
     image = cv.normalize(image, None, 0, 1.0, cv.NORM_MINMAX)
     plt.imshow(image, cmap=cmap)
+    plt.show()
+
+def plot_voxel_grid(voxelgrid, cmap='gray'):
+    images = []
+    splitter = np.ones((voxelgrid.shape[1], 2))*np.max(voxelgrid)
+    for image in voxelgrid:
+        images.append(image)
+        images.append(splitter)
+    images.pop()
+    sidebyside = np.hstack(images)
+    sidebyside = cv.normalize(sidebyside, None, 0, 1.0, cv.NORM_MINMAX)
+    plt.imshow(sidebyside, cmap=cmap)
     plt.show()
 
 def events_bounds_mask(xs, ys, x_min, x_max, y_min, y_max):
@@ -221,6 +250,7 @@ def events_to_image_torch(xs, ys, ps,
         clipy = img_size[0] if interpolation is None and padding==False else img_size[0]-1
         mask = torch.where(xs>=clipx, zero_v, ones_v)*torch.where(ys>=clipy, zero_v, ones_v)
 
+    img = torch.zeros(img_size).to(device)
     if interpolation == 'bilinear' and xs.dtype is not torch.long and xs.dtype is not torch.long:
         pxs = xs.floor()
         pys = ys.floor()
@@ -229,7 +259,6 @@ def events_to_image_torch(xs, ys, ps,
         pxs = (pxs*mask).long()
         pys = (pys*mask).long()
         masked_ps = ps*mask
-        img = torch.zeros(img_size).to(device)
         interpolate_to_image(pxs, pys, dxs, dys, masked_ps, img)
     else:
         if xs.dtype is not torch.long:
@@ -386,7 +415,7 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     device = 'cpu'
 
-    test_loop = 1
+    test_loop = 100
     s=80000
     e=s+150000
     bins = 5
@@ -400,6 +429,20 @@ if __name__ == "__main__":
         pt = pt.float().to(device)
     end = time.time()
     print("conversion to torch: time elapsed  = {:0.5f}".format((end-start)/test_loop))
+
+    start = time.time()
+    t0 = ts[len(ts)-1] #worst case
+    for i in range(test_loop):
+       idx = binary_search_h5_timestamp(args.path, 0, None, t0)
+    end = time.time()
+    print("binary search of hdf5 (idx={}): time elapsed  = {:0.5f}".format(idx, (end-start)/test_loop))
+
+    start = time.time()
+    t0 = ts[len(ts)-1] #worst case
+    for i in range(test_loop):
+        idx = np.searchsorted(ts, t0)
+    end = time.time()
+    print("binary search of np timestamps (idx={}): time elapsed  = {:0.5f}".format(idx, (end-start)/test_loop))
 
     start = time.time()
     for i in range(test_loop):
