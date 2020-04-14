@@ -60,6 +60,7 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
             flow_dset = events_file.create_group("flow")
             flow_dset.attrs['num_images'] = num_flow_msgs
         num_pos, num_neg, last_ts, img_cnt, flow_cnt = 0, 0, 0, 0, 0
+        image_timestamps = []
 
         for topic, msg, t in bag.read_messages():
             if first_ts == -1 and topic in topics:
@@ -83,6 +84,7 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
                 image_dset.attrs['size'] = image.shape
                 image_dset.attrs['timestamp'] = timestamp
                 last_img_ts = timestamp
+                event_idx = np.searchsorted(ts, timestamp)
                 img_cnt += 1
 
             elif topic == flow_topic:
@@ -143,6 +145,25 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
         events_file.attrs['tk'] = last_ts
         events_file.attrs['num_imgs'] = img_cnt
         events_file.attrs['num_flow'] = flow_cnt
+
+        #Add event index to each data type (ie the index
+        #of the event at the timestamp for each frame etc)
+        datatypes = ['images', 'flow']
+        for datatype in datatypes:
+            if datatype in events_file.keys():
+                s = 0
+                added = 0
+                ts = events_file["events/ts"][s:s+max_buffer_size]
+                for image in events_file[datatype]:
+                    img_ts = events_file[datatype][image].attrs['timestamp']
+                    event_idx = np.searchsorted(ts, img_ts)
+                    if event_idx == len(ts):
+                        added += len(ts)
+                        s += max_buffer_size
+                        ts = events_file["events/ts"][s:s+max_buffer_size]
+                        event_idx = np.searchsorted(ts, img_ts)
+                    event_idx = max(0, event_idx-1)
+                    events_file[datatype][image].attrs['event_idx'] = event_idx + added
 
 def extract_rosbags(rosbag_paths, output_dir, event_topic, image_topic, flow_topic, zero_timestamps=False):
     for path in rosbag_paths:
