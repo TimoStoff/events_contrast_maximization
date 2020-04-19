@@ -91,12 +91,12 @@ class hdf5_packager(packager):
         self.events_file.attrs['num_events'] = num_pos+num_neg
         self.events_file.attrs['num_pos'] = num_pos
         self.events_file.attrs['num_neg'] = num_neg
-        self.events_file.attrs['duration'] = last_ts-first_ts
-        self.events_file.attrs['t0'] = first_ts
-        self.events_file.attrs['tk'] = last_ts
-        self.events_file.attrs['num_imgs'] = img_cnt
-        self.events_file.attrs['num_flow'] = flow_cnt
-        add_event_indices()
+        self.events_file.attrs['duration'] = tk-t0
+        self.events_file.attrs['t0'] = t0
+        self.events_file.attrs['tk'] = tk
+        self.events_file.attrs['num_imgs'] = num_imgs
+        self.events_file.attrs['num_flow'] = num_flow
+        self.add_event_indices()
 
     def set_data_available(self, num_images, num_flow):
         if num_images > 0:

@@ -72,7 +72,7 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
                 timestamp = timestamp_float(msg.header.stamp)-(first_ts if zero_timestamps else 0)
                 image = CvBridge().imgmsg_to_cv2(msg, "mono8")
 
-                ep.package_image(image, ts, img_cnt)
+                ep.package_image(image, timestamp, img_cnt)
                 last_img_ts = timestamp
                 img_cnt += 1
 
@@ -117,7 +117,7 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
                 del ys[:]
                 del ts[:]
                 del ps[:]
-        ep.add_metadata(num_pos, num_neg, last_ts-t0, t0, last_ts, num_imgs, num_flow)
+        ep.add_metadata(num_pos, num_neg, last_ts-first_ts, first_ts, last_ts, img_cnt, flow_cnt)
 
 def extract_rosbags(rosbag_paths, output_dir, event_topic, image_topic, flow_topic, zero_timestamps=False):
     for path in rosbag_paths:
