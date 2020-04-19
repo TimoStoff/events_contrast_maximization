@@ -60,9 +60,11 @@ def h5_to_memmap(h5_file_path, output_base_path, overwrite=True):
     output_pth = output_base_path
     if os.path.exists(output_pth):
         if overwrite:
+            print("Overwriting {}".format(output_pth))
             shutil.rmtree(output_pth)
         else:
             output_pth = find_safe_alternative(output_base_path)
+            print('Data will be extracted to: {}'.format(output_pth))
     os.makedirs(output_pth)
     mmap_pth = os.path.join(output_pth, "memmap")
     os.makedirs(mmap_pth)
@@ -117,6 +119,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("path", help="HDF5 file to convert")
     parser.add_argument("--output_dir", default=None, help="Path to extract (same as bag if left empty)")
+    parser.add_argument('--not_overwrite', action='store_false', help='If set, will not overwrite\
+            existing memmap, but will place safe alternative')
+
     args = parser.parse_args()
 
     bagname = os.path.splitext(os.path.basename(args.path))[0]
@@ -124,5 +129,4 @@ if __name__ == "__main__":
         output_path = os.path.join(os.path.dirname(os.path.abspath(args.path)), bagname)
     else:
         output_path = os.path.join(args.output_dir, bagname)
-    print('Data will be extracted to: {}'.format(output_path))
-    h5_to_memmap(args.path, output_path)
+    h5_to_memmap(args.path, output_path, overwrite=args.not_overwrite)
