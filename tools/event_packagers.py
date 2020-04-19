@@ -105,3 +105,4 @@ class hdf5_packager(packager):
         if num_flow > 0:
             self.flow_dset = self.events_file.create_group("flow")
             self.flow_dset.attrs['num_images'] = num_flow
+

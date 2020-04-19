@@ -41,6 +41,7 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
     event_msg_sum = 0
     num_msgs_between_logs = 25
     first_ts = -1
+    t0 = -1
     if not os.path.exists(rosbag_path):
         print("{} does not exist!".format(rosbag_path))
         return
@@ -65,8 +66,7 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
                 start_time = start_time + first_ts
                 if end_time is not None:
                     end_time = end_time+start_time
-                if zero_timestamps:
-                    timestamp = timestamp-first_ts
+                t0 = timestamp
 
             if topic == image_topic:
                 timestamp = timestamp_float(msg.header.stamp)-(first_ts if zero_timestamps else 0)
@@ -117,7 +117,7 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
                 del ys[:]
                 del ts[:]
                 del ps[:]
-        ep.add_metadata(num_pos, num_neg, last_ts-first_ts, first_ts, last_ts, img_cnt, flow_cnt)
+        ep.add_metadata(num_pos, num_neg, last_ts-t0, t0, last_ts, img_cnt, flow_cnt)
 
 def extract_rosbags(rosbag_paths, output_dir, event_topic, image_topic, flow_topic, zero_timestamps=False):
     for path in rosbag_paths:
