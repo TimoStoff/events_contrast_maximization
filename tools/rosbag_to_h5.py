@@ -5,6 +5,7 @@ from cv_bridge import CvBridge, CvBridgeError
 import os
 import h5py
 import numpy as np
+from event_packagers import *
 
 def append_to_dataset(dataset, data):
     dataset.resize(dataset.shape[0] + len(data), axis=0)
@@ -34,7 +35,8 @@ def get_rosbag_stats(bag, event_topic, image_topic=None, flow_topic=None):
 
 #Inspired by https://github.com/uzh-rpg/rpg_e2vid
 def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
-        flow_topic=None, start_time=None, end_time=None, zero_timestamps=False):
+        flow_topic=None, start_time=None, end_time=None, zero_timestamps=False, packager=hdf5_packager):
+    ep = hdf5_packager(output_path)
     topics = (event_topic, image_topic, flow_topic)
     event_msg_sum = 0
     num_msgs_between_logs = 25
@@ -48,17 +50,7 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
         # Extract events to h5
         xs, ys, ts, ps = [], [], [], []
         max_buffer_size = 1000000
-        events_file = h5py.File(output_path, 'w')
-        event_xs = events_file.create_dataset("events/xs", (0, ), dtype=np.dtype(np.int16), maxshape=(None, ), chunks=True)
-        event_ys = events_file.create_dataset("events/ys", (0, ), dtype=np.dtype(np.int16), maxshape=(None, ), chunks=True)
-        event_ts = events_file.create_dataset("events/ts", (0, ), dtype=np.dtype(np.float64), maxshape=(None, ), chunks=True)
-        event_ps = events_file.create_dataset("events/ps", (0, ), dtype=np.dtype(np.bool_), maxshape=(None, ), chunks=True)
-        if num_img_msgs > 0:
-            image_dset = events_file.create_group("images")
-            image_dset.attrs['num_images'] = num_img_msgs
-        if num_flow_msgs > 0:
-            flow_dset = events_file.create_group("flow")
-            flow_dset.attrs['num_images'] = num_flow_msgs
+        ep.set_data_available(num_img_msgs, num_flow_msgs)
         num_pos, num_neg, last_ts, img_cnt, flow_cnt = 0, 0, 0, 0, 0
         image_timestamps = []
 
@@ -79,12 +71,9 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
             if topic == image_topic:
                 timestamp = timestamp_float(msg.header.stamp)-(first_ts if zero_timestamps else 0)
                 image = CvBridge().imgmsg_to_cv2(msg, "mono8")
-                image_dset = events_file.create_dataset("images/image{:09d}".format(img_cnt), data=image,
-                                                        dtype=np.dtype(np.uint8))
-                image_dset.attrs['size'] = image.shape
-                image_dset.attrs['timestamp'] = timestamp
+
+                ep.package_image(image, ts, img_cnt)
                 last_img_ts = timestamp
-                event_idx = np.searchsorted(ts, timestamp)
                 img_cnt += 1
 
             elif topic == flow_topic:
@@ -96,10 +85,7 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
                 flow_y.shape = (msg.height, msg.width)
                 flow_image = np.stack((flow_x, flow_y), axis=0)
 
-                flow_dset = events_file.create_dataset("flow/flow{:09d}".format(flow_cnt), data=flow_image,
-                                                       dtype=np.dtype(np.float32))
-                flow_dset.attrs['size'] = flow_image.shape
-                flow_dset.attrs['timestamp'] = flow_img_ts
+                ep.package_flow(flow_image, timestamp, flow_cnt)
                 flow_cnt += 1
 
             elif topic == event_topic:
@@ -119,51 +105,19 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
                     last_ts = timestamp
                 if (len(xs) > max_buffer_size and timestamp >= start_time) or (end_time is not None and timestamp >= start_time):
                     # print("Writing events")
-                    append_to_dataset(event_xs, xs)
-                    append_to_dataset(event_ys, ys)
-                    append_to_dataset(event_ts, ts)
-                    append_to_dataset(event_ps, ps)
+                    ep.package_events(xs, ys, ts, ps)
                     del xs[:]
                     del ys[:]
                     del ts[:]
                     del ps[:]
                 if end_time is not None and timestamp >= start_time:
                     return
-                append_to_dataset(event_xs, xs)
-                append_to_dataset(event_ys, ys)
-                append_to_dataset(event_ts, ts)
-                append_to_dataset(event_ps, ps)
+                ep.package_events(xs, ys, ts, ps)
                 del xs[:]
                 del ys[:]
                 del ts[:]
                 del ps[:]
-        events_file.attrs['num_events'] = num_pos+num_neg
-        events_file.attrs['num_pos'] = num_pos
-        events_file.attrs['num_neg'] = num_neg
-        events_file.attrs['duration'] = last_ts-first_ts
-        events_file.attrs['t0'] = first_ts
-        events_file.attrs['tk'] = last_ts
-        events_file.attrs['num_imgs'] = img_cnt
-        events_file.attrs['num_flow'] = flow_cnt
-
-        #Add event index to each data type (ie the index
-        #of the event at the timestamp for each frame etc)
-        datatypes = ['images', 'flow']
-        for datatype in datatypes:
-            if datatype in events_file.keys():
-                s = 0
-                added = 0
-                ts = events_file["events/ts"][s:s+max_buffer_size]
-                for image in events_file[datatype]:
-                    img_ts = events_file[datatype][image].attrs['timestamp']
-                    event_idx = np.searchsorted(ts, img_ts)
-                    if event_idx == len(ts):
-                        added += len(ts)
-                        s += max_buffer_size
-                        ts = events_file["events/ts"][s:s+max_buffer_size]
-                        event_idx = np.searchsorted(ts, img_ts)
-                    event_idx = max(0, event_idx-1)
-                    events_file[datatype][image].attrs['event_idx'] = event_idx + added
+        ep.add_metadata(num_pos, num_neg, last_ts-t0, t0, last_ts, num_imgs, num_flow)
 
 def extract_rosbags(rosbag_paths, output_dir, event_topic, image_topic, flow_topic, zero_timestamps=False):
     for path in rosbag_paths:
