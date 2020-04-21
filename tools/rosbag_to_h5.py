@@ -42,6 +42,7 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
     num_msgs_between_logs = 25
     first_ts = -1
     t0 = -1
+    sensor_size = None
     if not os.path.exists(rosbag_path):
         print("{} does not exist!".format(rosbag_path))
         return
@@ -73,6 +74,7 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
                 image = CvBridge().imgmsg_to_cv2(msg, "mono8")
 
                 ep.package_image(image, timestamp, img_cnt)
+                sensor_size = image.shape
                 last_img_ts = timestamp
                 img_cnt += 1
 
@@ -105,6 +107,8 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
                     last_ts = timestamp
                 if (len(xs) > max_buffer_size and timestamp >= start_time) or (end_time is not None and timestamp >= start_time):
                     # print("Writing events")
+                    if sensor_size is None or sensor_size[0] < max(xs) or sensor_size[1] < max(ys):
+                        sensor_size = [max(xs), max(ys)]
                     ep.package_events(xs, ys, ts, ps)
                     del xs[:]
                     del ys[:]
@@ -112,12 +116,14 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
                     del ps[:]
                 if end_time is not None and timestamp >= start_time:
                     return
+                if sensor_size is None or sensor_size[0] < max(xs) or sensor_size[1] < max(ys):
+                    sensor_size = [max(xs), max(ys)]
                 ep.package_events(xs, ys, ts, ps)
                 del xs[:]
                 del ys[:]
                 del ts[:]
                 del ps[:]
-        ep.add_metadata(num_pos, num_neg, last_ts-t0, t0, last_ts, img_cnt, flow_cnt)
+        ep.add_metadata(num_pos, num_neg, last_ts-t0, t0, last_ts, img_cnt, flow_cnt, sensor_size)
 
 def extract_rosbags(rosbag_paths, output_dir, event_topic, image_topic, flow_topic, zero_timestamps=False):
     for path in rosbag_paths:

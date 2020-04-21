@@ -52,7 +52,10 @@ def save_additional_data_as_mmap(f, mmap_pth, data):
 def write_metadata(f, metadata_path):
     metadata = {}
     for attr in f.attrs:
-        metadata[attr] = f.attrs[attr]
+        val = f.attrs[attr]
+        if isinstance(val, np.ndarray):
+            val = val.tolist()
+        metadata[attr] = val
     with open(metadata_path, 'w') as js:
         json.dump(metadata, js)
 
@@ -113,8 +116,7 @@ def h5_to_memmap(h5_file_path, output_base_path, overwrite=True):
 
 if __name__ == "__main__":
     """
-    Tool for converting rosbag events to an efficient HDF5 format that can be speedily
-    accessed by python code.
+    Tool to convert this projects style hdf5 files to the memmap format used in some RPG projects
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("path", help="HDF5 file to convert")

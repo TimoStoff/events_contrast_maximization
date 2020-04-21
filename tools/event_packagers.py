@@ -87,7 +87,7 @@ class hdf5_packager(packager):
                     self.events_file[datatype][image].attrs['event_idx'] = event_idx + added
 
     def add_metadata(self, num_pos, num_neg,
-            duration, t0, tk, num_imgs, num_flow):
+            duration, t0, tk, num_imgs, num_flow, sensor_size):
         self.events_file.attrs['num_events'] = num_pos+num_neg
         self.events_file.attrs['num_pos'] = num_pos
         self.events_file.attrs['num_neg'] = num_neg
@@ -96,6 +96,7 @@ class hdf5_packager(packager):
         self.events_file.attrs['tk'] = tk
         self.events_file.attrs['num_imgs'] = num_imgs
         self.events_file.attrs['num_flow'] = num_flow
+        self.events_file.attrs['sensor_resolution'] = sensor_size
         self.add_event_indices()
 
     def set_data_available(self, num_images, num_flow):

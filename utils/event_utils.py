@@ -400,6 +400,20 @@ def events_to_voxel_torch(xs, ys, ts, ps, B, device=None, sensor_size=(180, 240)
     bins = torch.stack(bins)
     return bins
 
+def events_to_neg_pos_voxel_torch(xs, ys, ts, ps, B, device=None,
+        sensor_size=(180, 240), temporal_bilinear=True):
+    zero_v = torch.tensor([0.])
+    ones_v = torch.tensor([1.])
+    pos_weights = torch.where(ps>0, ones_v, zero_v)
+    neg_weights = torch.where(ps<=0, ones_v, zero_v)
+
+    voxel_pos = events_to_voxel_torch(xs, ys, ts, pos_weights, B, device=device,
+            sensor_size=sensor_size, temporal_bilinear=temporal_bilinear)
+    voxel_neg = events_to_voxel_torch(xs, ys, ts, neg_weights, B, device=device,
+            sensor_size=sensor_size, temporal_bilinear=temporal_bilinear)
+
+    return voxel_pos, voxel_neg
+
 if __name__ == "__main__":
     """
     Quick demo of some of the voxel/event image generating functions
