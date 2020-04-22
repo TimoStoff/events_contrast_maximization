@@ -48,7 +48,7 @@ def plot_image(image, lognorm=False, cmap='gray'):
     plt.imshow(image, cmap=cmap)
     plt.show()
 
-def plot_voxel_grid(voxelgrid, cmap='gray'):
+def get_voxel_grid_as_image(voxelgrid):
     images = []
     splitter = np.ones((voxelgrid.shape[1], 2))*np.max(voxelgrid)
     for image in voxelgrid:
@@ -56,7 +56,11 @@ def plot_voxel_grid(voxelgrid, cmap='gray'):
         images.append(splitter)
     images.pop()
     sidebyside = np.hstack(images)
-    sidebyside = cv.normalize(sidebyside, None, 0, 1.0, cv.NORM_MINMAX)
+    sidebyside = cv.normalize(sidebyside, None, 0, 255, cv.NORM_MINMAX)
+    return sidebyside
+
+def plot_voxel_grid(voxelgrid, cmap='gray'):
+    sidebyside = get_voxel_grid_as_image(voxelgrid)
     plt.imshow(sidebyside, cmap=cmap)
     plt.show()
 
@@ -410,6 +414,56 @@ def events_to_neg_pos_voxel_torch(xs, ys, ts, ps, B, device=None,
     voxel_pos = events_to_voxel_torch(xs, ys, ts, pos_weights, B, device=device,
             sensor_size=sensor_size, temporal_bilinear=temporal_bilinear)
     voxel_neg = events_to_voxel_torch(xs, ys, ts, neg_weights, B, device=device,
+            sensor_size=sensor_size, temporal_bilinear=temporal_bilinear)
+
+    return voxel_pos, voxel_neg
+
+def events_to_voxel(xs, ys, ts, ps, B, sensor_size=(180, 240), temporal_bilinear=True):
+    """
+    Turn set of events to a voxel grid tensor, using temporal bilinear interpolation
+    Parameters
+    ----------
+    xs : list of event x coordinates 
+    ys : list of event y coordinates 
+    ts : list of event timestamps 
+    ps : list of event polarities 
+    B : number of bins in output voxel grids (int)
+    sensor_size : the size of the event sensor/output voxels
+    temporal_bilinear : whether the events should be naively
+        accumulated to the voxels (faster), or properly
+        temporally distributed
+    Returns
+    -------
+    voxel: voxel of the events between t0 and t1
+    """
+    assert(len(xs)==len(ys) and len(ys)==len(ts) and len(ts)==len(ps))
+    num_events_per_bin = len(xs)//B
+    bins = []
+    dt = ts[-1]-ts[0]
+    t_norm = (ts-ts[0])/dt*(B-1)
+    zeros = np.expand_dims(np.zeros(t_norm.shape[0]), axis=0).transpose()
+    for bi in range(B):
+        if temporal_bilinear:
+            bilinear_weights = np.maximum(zeros, 1.0-np.abs(t_norm-bi))
+            weights = ps*bilinear_weights
+        else:
+            beg = bi*num_events_per_bin
+            end = beg + num_events_per_bin
+            vb = events_to_image(xs[beg:end], ys[beg:end],
+                    weights[beg:end], sensor_size=sensor_size)
+        vb = events_to_image(xs, ys, weights.squeeze(), sensor_size=sensor_size, interpolation=None)
+        bins.append(vb)
+    bins = np.stack(bins)
+    return bins
+
+def events_to_neg_pos_voxel(xs, ys, ts, ps, B,
+        sensor_size=(180, 240), temporal_bilinear=True):
+    pos_weights = np.where(ps, 1, 0)
+    neg_weights = np.where(ps, 0, 1)
+
+    voxel_pos = events_to_voxel(xs, ys, ts, pos_weights, B,
+            sensor_size=sensor_size, temporal_bilinear=temporal_bilinear)
+    voxel_neg = events_to_voxel(xs, ys, ts, neg_weights, B,
             sensor_size=sensor_size, temporal_bilinear=temporal_bilinear)
 
     return voxel_pos, voxel_neg
