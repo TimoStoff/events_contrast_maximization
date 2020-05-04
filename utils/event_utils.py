@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2 as cv
 import torch
+import torch.nn.functional as F
 
 def binary_search_h5_timestamp(hdf_path, l, r, x, side='left'):
     f = h5py.File(hdf_path, 'r')
@@ -246,10 +247,10 @@ def events_to_image_torch(xs, ys, ps,
     else:
         img_size = sensor_size
 
-    mask = torch.ones(xs.size())
+    mask = torch.ones(xs.size(), device=device)
     if clip_out_of_range:
-        zero_v = torch.tensor([0.])
-        ones_v = torch.tensor([1.])
+        zero_v = torch.tensor([0.], device=device)
+        ones_v = torch.tensor([1.], device=device)
         clipx = img_size[1] if interpolation is None and padding==False else img_size[1]-1
         clipy = img_size[0] if interpolation is None and padding==False else img_size[0]-1
         mask = torch.where(xs>=clipx, zero_v, ones_v)*torch.where(ys>=clipy, zero_v, ones_v)
@@ -262,7 +263,7 @@ def events_to_image_torch(xs, ys, ps,
         dys = ys-pys
         pxs = (pxs*mask).long()
         pys = (pys*mask).long()
-        masked_ps = ps*mask
+        masked_ps = ps.squeeze()*mask
         interpolate_to_image(pxs, pys, dxs, dys, masked_ps, img)
     else:
         if xs.dtype is not torch.long:
@@ -417,6 +418,87 @@ def events_to_neg_pos_voxel_torch(xs, ys, ts, ps, B, device=None,
             sensor_size=sensor_size, temporal_bilinear=temporal_bilinear)
 
     return voxel_pos, voxel_neg
+
+def warp_events_flow_torch(xt, yt, tt, pt, flow_field, t0=None):
+    if t0 is None:
+        t0 = tt[-1]
+    while len(flow_field.size()) < 4:
+        flow_field.unsqueeze(0)
+    if len(xt.size()) == 1:
+        event_indices = torch.transpose(torch.stack((xt, yt), dim=0), 0, 1)
+    else:
+        event_indices = torch.transpose(torch.cat((xt, yt), dim=1), 0, 1)
+    event_indices.requires_grad_ = False
+    event_indices = torch.reshape(event_indices, [1, 1, len(xt), 2])
+
+    # Event indices need to be between -1 and 1 for F.gridsample
+    event_indices[:,:,:,0] = event_indices[:,:,:,0]/(flow_field.shape[3]-1)*2.0-1.0
+    event_indices[:,:,:,1] = event_indices[:,:,:,1]/(flow_field.shape[2]-1)*2.0-1.0
+
+    flow_at_event = F.grid_sample(flow_field, event_indices, align_corners=True) 
+    
+    dt = (tt-t0).squeeze()
+
+    warped_xt = xt+flow_at_event[:,0,:,:].squeeze()*dt
+    warped_yt = yt+flow_at_event[:,1,:,:].squeeze()*dt
+
+    #iwe = events_to_image_torch(warped_xt, warped_yt, pt, sensor_size=flow_field.size()[-2:],
+    #        clip_out_of_range=True, interpolation='bilinear')
+
+    return warped_xt, warped_yt
+
+def events_to_timestamp_image_torch(xs, ys, ts, ps,
+        device=None, sensor_size=(180, 240), clip_out_of_range=True,
+        interpolation='bilinear', padding=True):
+    """
+    Method to generate the average timestamp images from 'Zhu19, Unsupervised Event-based Learning 
+    of Optical Flow, Depth, and Egomotion'. This method does not have known derivative.
+    """
+    if device is None:
+        device = xs.device
+    xs, ys, ps, ts = xs.squeeze(), ys.squeeze(), ps.squeeze(), ts.squeeze()
+    if padding:
+        img_size = (sensor_size[0]+1, sensor_size[1]+1)
+    else:
+        img_size = sensor_size
+    zero_v = torch.tensor([0.], device=device)
+    ones_v = torch.tensor([1.], device=device)
+
+    mask = torch.ones(xs.size(), device=device)
+    if clip_out_of_range:
+        clipx = img_size[1] if interpolation is None and padding==False else img_size[1]-1
+        clipy = img_size[0] if interpolation is None and padding==False else img_size[0]-1
+        mask = torch.where(xs>=clipx, zero_v, ones_v)*torch.where(ys>=clipy, zero_v, ones_v)
+
+    pos_events_mask = torch.where(ps>0, ones_v, zero_v)
+    neg_events_mask = torch.where(ps<=0, ones_v, zero_v)
+    normalized_ts = ((ts-ts[0])/(ts[-1]+1e-6)).squeeze()
+    pxs = xs.floor()
+    pys = ys.floor()
+    dxs = xs-pxs
+    dys = ys-pys
+    pxs = (pxs*mask).long()
+    pys = (pys*mask).long()
+    masked_ps = ps*mask
+
+    pos_weights = normalized_ts*pos_events_mask
+    neg_weights = normalized_ts*neg_events_mask
+    img_pos = torch.zeros(img_size).to(device)
+    img_pos_cnt = torch.ones(img_size).to(device)
+    img_neg = torch.zeros(img_size).to(device)
+    img_neg_cnt = torch.ones(img_size).to(device)
+
+    interpolate_to_image(pxs, pys, dxs, dys, pos_weights, img_pos)
+    interpolate_to_image(pxs, pys, dxs, dys, pos_events_mask, img_pos_cnt)
+    interpolate_to_image(pxs, pys, dxs, dys, neg_weights, img_neg)
+    interpolate_to_image(pxs, pys, dxs, dys, neg_events_mask, img_neg_cnt)
+
+    # Avoid division by 0
+    img_pos_cnt[img_pos_cnt==0] = 1
+    img_neg_cnt[img_neg_cnt==0] = 1
+    img_pos = img_pos.div(img_pos_cnt)
+    img_neg = img_neg.div(img_neg_cnt)
+    return img_pos, img_neg #/img_pos_cnt, img_neg/img_neg_cnt
 
 def events_to_voxel(xs, ys, ts, ps, B, sensor_size=(180, 240), temporal_bilinear=True):
     """
