@@ -420,6 +420,7 @@ def events_to_neg_pos_voxel_torch(xs, ys, ts, ps, B, device=None,
     return voxel_pos, voxel_neg
 
 def warp_events_flow_torch(xt, yt, tt, pt, flow_field, t0=None):
+    xt, yt, tt, pt = xt.squeeze(), yt.squeeze(), tt.squeeze(), pt.squeeze()
     if t0 is None:
         t0 = tt[-1]
     while len(flow_field.size()) < 4:
@@ -449,7 +450,7 @@ def warp_events_flow_torch(xt, yt, tt, pt, flow_field, t0=None):
 
 def events_to_timestamp_image_torch(xs, ys, ts, ps,
         device=None, sensor_size=(180, 240), clip_out_of_range=True,
-        interpolation='bilinear', padding=True):
+        interpolation='bilinear', padding=True, timestamp_reverse=False):
     """
     Method to generate the average timestamp images from 'Zhu19, Unsupervised Event-based Learning 
     of Optical Flow, Depth, and Egomotion'. This method does not have known derivative.
@@ -472,7 +473,11 @@ def events_to_timestamp_image_torch(xs, ys, ts, ps,
 
     pos_events_mask = torch.where(ps>0, ones_v, zero_v)
     neg_events_mask = torch.where(ps<=0, ones_v, zero_v)
-    normalized_ts = ((ts-ts[0])/(ts[-1]+1e-6)).squeeze()
+    epsilon = 1e-6
+    if timestamp_reverse:
+        normalized_ts = ((-ts+ts[-1])/(ts[-1]-ts[0]+epsilon)).squeeze()
+    else:
+        normalized_ts = ((ts-ts[0])/(ts[-1]-ts[0]+epsilon)).squeeze()
     pxs = xs.floor()
     pys = ys.floor()
     dxs = xs-pxs
