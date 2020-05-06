@@ -424,7 +424,7 @@ def warp_events_flow_torch(xt, yt, tt, pt, flow_field, t0=None):
     if t0 is None:
         t0 = tt[-1]
     while len(flow_field.size()) < 4:
-        flow_field.unsqueeze(0)
+        flow_field.unsqueeze_(0)
     if len(xt.size()) == 1:
         event_indices = torch.transpose(torch.stack((xt, yt), dim=0), 0, 1)
     else:
