@@ -38,6 +38,7 @@ class hdf5_packager(packager):
     """
     def __init__(self, output_path, max_buffer_size=1000000):
         packager.__init__(self, 'hdf5', output_path, max_buffer_size)
+        print("CREATING FILE IN {}".format(output_path))
         self.events_file = h5py.File(output_path, 'w')
         self.event_xs = self.events_file.create_dataset("events/xs", (0, ), dtype=np.dtype(np.int16), maxshape=(None, ), chunks=True)
         self.event_ys = self.events_file.create_dataset("events/ys", (0, ), dtype=np.dtype(np.int16), maxshape=(None, ), chunks=True)
@@ -62,11 +63,11 @@ class hdf5_packager(packager):
         image_dset.attrs['size'] = image.shape
         image_dset.attrs['timestamp'] = timestamp
 
-    def package_flow(self, flow, timestamp, flow_idx):
+    def package_flow(self, flow_image, timestamp, flow_idx):
         flow_dset = self.events_file.create_dataset("flow/flow{:09d}".format(flow_idx),
                 data=flow_image, dtype=np.dtype(np.float32))
         flow_dset.attrs['size'] = flow_image.shape
-        flow_dset.attrs['timestamp'] = flow_img_ts
+        flow_dset.attrs['timestamp'] = timestamp
 
     def add_event_indices(self):
         datatypes = ['images', 'flow']
