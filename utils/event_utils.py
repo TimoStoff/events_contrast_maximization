@@ -249,7 +249,7 @@ def events_to_image_torch(xs, ys, ps,
     if interpolation == 'bilinear' and padding:
         img_size = (sensor_size[0]+1, sensor_size[1]+1)
     else:
-        img_size = sensor_size
+        img_size = list(sensor_size)
 
     mask = torch.ones(xs.size(), device=device)
     if clip_out_of_range:
