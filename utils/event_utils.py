@@ -91,7 +91,11 @@ def events_to_image(xs, ys, ps, sensor_size=(180, 240), interpolation=None, padd
         img = img.numpy()
     else:
         coords = np.stack((ys, xs))
-        abs_coords = np.ravel_multi_index(coords, sensor_size)
+        try:
+            abs_coords = np.ravel_multi_index(coords, sensor_size)
+        except ValueError:
+            print("Issue with input arrays! coords={}, coords.shape={}, sum(coords)={}, sensor_size={}".format(coords, coords.shape, np.sum(coords), sensor_size))
+            raise ValueError
         img = np.bincount(abs_coords, weights=ps, minlength=sensor_size[0]*sensor_size[1])
     img = img.reshape(sensor_size)
     return img
