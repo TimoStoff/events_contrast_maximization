@@ -107,8 +107,9 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
                     last_ts = timestamp
                 if (len(xs) > max_buffer_size and timestamp >= start_time) or (end_time is not None and timestamp >= start_time):
                     # print("Writing events")
-                    if sensor_size is None or sensor_size[0] < max(xs) or sensor_size[1] < max(ys):
+                    if sensor_size is None or sensor_size[0] < max(ys) or sensor_size[1] < max(xs):
                         sensor_size = [max(xs), max(ys)]
+                        print("Sensor size inferred from events as {}".format(sensor_size))
                     ep.package_events(xs, ys, ts, ps)
                     del xs[:]
                     del ys[:]
@@ -116,13 +117,15 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
                     del ps[:]
                 if end_time is not None and timestamp >= start_time:
                     return
-                if sensor_size is None or sensor_size[0] < max(xs) or sensor_size[1] < max(ys):
+                if sensor_size is None or sensor_size[0] < max(ys) or sensor_size[1] < max(xs):
                     sensor_size = [max(xs), max(ys)]
+                    print("Sensor size inferred from events as {}".format(sensor_size))
                 ep.package_events(xs, ys, ts, ps)
                 del xs[:]
                 del ys[:]
                 del ts[:]
                 del ps[:]
+        print("Detect sensor size {}".format(sensor_size))
         ep.add_metadata(num_pos, num_neg, last_ts-t0, t0, last_ts, img_cnt, flow_cnt, sensor_size)
 
 def extract_rosbags(rosbag_paths, output_dir, event_topic, image_topic, flow_topic, zero_timestamps=False):
