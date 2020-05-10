@@ -1,3 +1,4 @@
+import glob
 import argparse
 import rosbag
 import rospy
@@ -153,7 +154,7 @@ if __name__ == "__main__":
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
     if os.path.isdir(args.path):
-        rosbag_paths = sorted(glob.glob(os.path.join(args.path, ".bag")))
+        rosbag_paths = sorted(glob.glob(os.path.join(args.path, "*.bag")))
     else:
         rosbag_paths = [args.path]
     extract_rosbags(rosbag_paths, args.output_dir, args.event_topic, args.image_topic, args.flow_topic, args.zero_timestamps)
