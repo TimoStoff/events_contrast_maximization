@@ -8,14 +8,17 @@ import h5py
 import numpy as np
 from event_packagers import *
 
+
 def append_to_dataset(dataset, data):
     dataset.resize(dataset.shape[0] + len(data), axis=0)
     if len(data) == 0:
         return
     dataset[-len(data):] = data[:]
 
+
 def timestamp_float(ts):
     return ts.secs + ts.nsecs / float(1e9)
+
 
 def get_rosbag_stats(bag, event_topic, image_topic=None, flow_topic=None):
     num_event_msgs = 0
@@ -23,7 +26,7 @@ def get_rosbag_stats(bag, event_topic, image_topic=None, flow_topic=None):
     num_flow_msgs = 0
     topics = bag.get_type_and_topic_info().topics
     for topic_name, topic_info in topics.iteritems():
-        if topic_name == args.event_topic:
+        if topic_name == event_topic:
             num_event_msgs = topic_info.message_count
             print('Found events topic: {} with {} messages'.format(topic_name, topic_info.message_count))
         if topic_name == image_topic:
@@ -34,10 +37,11 @@ def get_rosbag_stats(bag, event_topic, image_topic=None, flow_topic=None):
             print('Found flow topic: {} with {} messages'.format(topic_name, num_flow_msgs))
     return num_event_msgs, num_img_msgs, num_flow_msgs
 
-#Inspired by https://github.com/uzh-rpg/rpg_e2vid
+
+# Inspired by https://github.com/uzh-rpg/rpg_e2vid
 def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
-        flow_topic=None, start_time=None, end_time=None, zero_timestamps=False, packager=hdf5_packager):
-    ep = hdf5_packager(output_path)
+                   flow_topic=None, start_time=None, end_time=None, zero_timestamps=False, packager=hdf5_packager):
+    ep = packager(output_path)
     topics = (event_topic, image_topic, flow_topic)
     event_msg_sum = 0
     num_msgs_between_logs = 25
@@ -55,7 +59,6 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
         max_buffer_size = 1000000
         ep.set_data_available(num_img_msgs, num_flow_msgs)
         num_pos, num_neg, last_ts, img_cnt, flow_cnt = 0, 0, 0, 0, 0
-        image_timestamps = []
 
         for topic, msg, t in bag.read_messages():
             if first_ts == -1 and topic in topics:
@@ -76,7 +79,6 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
 
                 ep.package_image(image, timestamp, img_cnt)
                 sensor_size = image.shape
-                last_img_ts = timestamp
                 img_cnt += 1
 
             elif topic == flow_topic:
@@ -129,12 +131,15 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
         print("Detect sensor size {}".format(sensor_size))
         ep.add_metadata(num_pos, num_neg, last_ts-t0, t0, last_ts, img_cnt, flow_cnt, sensor_size)
 
+
 def extract_rosbags(rosbag_paths, output_dir, event_topic, image_topic, flow_topic, zero_timestamps=False):
     for path in rosbag_paths:
         bagname = os.path.splitext(os.path.basename(path))[0]
         out_path = os.path.join(output_dir, "{}.h5".format(bagname))
         print("Extracting {} to {}".format(path, out_path))
-        extract_rosbag(path, out_path, event_topic, image_topic=image_topic, flow_topic=flow_topic, zero_timestamps=zero_timestamps)
+        extract_rosbag(path, out_path, event_topic, image_topic=image_topic,
+                       flow_topic=flow_topic, zero_timestamps=zero_timestamps)
+
 
 if __name__ == "__main__":
     """
