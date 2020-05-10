@@ -24,6 +24,22 @@ def binary_search_h5_timestamp(hdf_path, l, r, x, side='left'):
         return l
     return r
 
+def binary_search_torch_tensor(t, l, r, x, side='left'):
+    if r is None:
+        r = len(t)-1
+    while l <= r:
+        mid = l + (r - l)//2;
+        midval = t[mid]
+        if midval == x:
+            return mid
+        elif midval < x:
+            l = mid + 1
+        else:
+            r = mid - 1
+    if side == 'left':
+        return l
+    return r
+
 def read_h5_events(hdf_path):
     f = h5py.File(hdf_path, 'r')
     if 'events/x' in f:
@@ -387,7 +403,6 @@ def events_to_voxel_torch(xs, ys, ts, ps, B, device=None, sensor_size=(180, 240)
     if device is None:
         device = xs.device
     assert(len(xs)==len(ys) and len(ys)==len(ts) and len(ts)==len(ps))
-    num_events_per_bin = len(xs)//B
     bins = []
     dt = ts[-1]-ts[0]
     t_norm = (ts-ts[0])/dt*(B-1)
@@ -396,15 +411,17 @@ def events_to_voxel_torch(xs, ys, ts, ps, B, device=None, sensor_size=(180, 240)
         if temporal_bilinear:
             bilinear_weights = torch.max(zeros, 1.0-torch.abs(t_norm-bi))
             weights = ps*bilinear_weights
-        else:
-            beg = bi*num_events_per_bin
-            end = beg + num_events_per_bin
-            vb = events_to_image_torch(xs[beg:end], ys[beg:end],
-                    weights[beg:end], device, sensor_size=sensor_size,
+            vb = events_to_image_torch(xs, ys,
+                    weights, device, sensor_size=sensor_size,
                     clip_out_of_range=False)
-        vb = events_to_image_torch(xs, ys,
-                weights, device, sensor_size=sensor_size,
-                clip_out_of_range=False)
+        else:
+            tstart = t[0] + dt*bi
+            tend = tstart + dt
+            beg = binary_search_torch_tensor(t, 0, len(ts)-1, tstart) 
+            end = binary_search_torch_tensor(t, 0, len(ts)-1, tend) 
+            vb = events_to_image_torch(xs[beg:end], ys[beg:end],
+                    ps[beg:end], device, sensor_size=sensor_size,
+                    clip_out_of_range=False)
         bins.append(vb)
     bins = torch.stack(bins)
     return bins
