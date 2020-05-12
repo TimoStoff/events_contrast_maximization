@@ -1,5 +1,6 @@
 from abc import ABCMeta, abstractmethod
 import h5py
+import cv2 as cv
 import numpy as np
 
 class packager():
@@ -62,6 +63,7 @@ class hdf5_packager(packager):
                 data=image, dtype=np.dtype(np.uint8))
         image_dset.attrs['size'] = image.shape
         image_dset.attrs['timestamp'] = timestamp
+        image_dset.attrs['type'] = "greyscale" if image.shape[-1] == 1 or len(image.shape) == 2 else "color_bgr" 
 
     def package_flow(self, flow_image, timestamp, flow_idx):
         flow_dset = self.events_file.create_dataset("flow/flow{:09d}".format(flow_idx),

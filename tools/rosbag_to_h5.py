@@ -40,7 +40,8 @@ def get_rosbag_stats(bag, event_topic, image_topic=None, flow_topic=None):
 
 # Inspired by https://github.com/uzh-rpg/rpg_e2vid
 def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
-                   flow_topic=None, start_time=None, end_time=None, zero_timestamps=False, packager=hdf5_packager):
+                   flow_topic=None, start_time=None, end_time=None, zero_timestamps=False,
+                   packager=hdf5_packager, is_color=False):
     ep = packager(output_path)
     topics = (event_topic, image_topic, flow_topic)
     event_msg_sum = 0
@@ -75,7 +76,10 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
 
             if topic == image_topic:
                 timestamp = timestamp_float(msg.header.stamp)-(first_ts if zero_timestamps else 0)
-                image = CvBridge().imgmsg_to_cv2(msg, "mono8")
+                if is_color:
+                    image = CvBridge().imgmsg_to_cv2(msg, "bgr8")
+                else:
+                    image = CvBridge().imgmsg_to_cv2(msg, "mono8")
 
                 ep.package_image(image, timestamp, img_cnt)
                 sensor_size = image.shape
@@ -132,13 +136,14 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
         ep.add_metadata(num_pos, num_neg, last_ts-t0, t0, last_ts, img_cnt, flow_cnt, sensor_size)
 
 
-def extract_rosbags(rosbag_paths, output_dir, event_topic, image_topic, flow_topic, zero_timestamps=False):
+def extract_rosbags(rosbag_paths, output_dir, event_topic, image_topic, flow_topic,
+        zero_timestamps=False, is_color=False):
     for path in rosbag_paths:
         bagname = os.path.splitext(os.path.basename(path))[0]
         out_path = os.path.join(output_dir, "{}.h5".format(bagname))
         print("Extracting {} to {}".format(path, out_path))
         extract_rosbag(path, out_path, event_topic, image_topic=image_topic,
-                       flow_topic=flow_topic, zero_timestamps=zero_timestamps)
+                       flow_topic=flow_topic, zero_timestamps=zero_timestamps, is_color=is_color)
 
 
 if __name__ == "__main__":
@@ -153,6 +158,7 @@ if __name__ == "__main__":
     parser.add_argument("--image_topic", default=None, help="Image topic (if left empty, no images will be collected)")
     parser.add_argument("--flow_topic", default=None, help="Flow topic (if left empty, no flow will be collected)")
     parser.add_argument('--zero_timestamps', action='store_true', help='If true, timestamps will be offset to start at 0')
+    parser.add_argument('--is_color', action='store_true', help='If true, timestamps will be offset to start at 0')
     args = parser.parse_args()
 
     print('Data will be extracted in folder: {}'.format(args.output_dir))
@@ -162,4 +168,5 @@ if __name__ == "__main__":
         rosbag_paths = sorted(glob.glob(os.path.join(args.path, "*.bag")))
     else:
         rosbag_paths = [args.path]
-    extract_rosbags(rosbag_paths, args.output_dir, args.event_topic, args.image_topic, args.flow_topic, args.zero_timestamps)
+    extract_rosbags(rosbag_paths, args.output_dir, args.event_topic, args.image_topic,
+            args.flow_topic, zero_timestamps=args.zero_timestamps, is_color=args.is_color)
