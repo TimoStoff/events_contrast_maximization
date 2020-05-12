@@ -192,13 +192,30 @@ def events_to_image_drv(xn, yn, pn, jacobian_xn, jacobian_yn,
         d_img = None
     return img.numpy(), d_img
 
-def events_to_zhu_timestamp_image(xn, yn, ts, pn,
+def events_to_timestamp_image(xn, yn, ts, pn,
         device=None, sensor_size=(180, 240), clip_out_of_range=True,
-        interpolation='bilinear', padding=True, compute_gradient=False, showimg=False):
+        interpolation='bilinear', padding=True):
     """
     Method to generate the average timestamp images from 'Zhu19, Unsupervised Event-based Learning 
     of Optical Flow, Depth, and Egomotion'. This method does not have known derivative.
+    Parameters
+    ----------
+    xs : list of event x coordinates 
+    ys : list of event y coordinates 
+    ts : list of event timestamps 
+    ps : list of event polarities 
+    device : the device that the events are on
+    sensor_size : the size of the event sensor/output voxels
+    clip_out_of_range: if the events go beyond the desired image size,
+       clip the events to fit into the image
+    interpolation: which interpolation to use. Options=None,'bilinear'
+    padding: if bilinear interpolation, allow padding the image by 1 to allow events to fit:
+    Returns
+    -------
+    img_pos: timestamp image of the positive events
+    img_neg: timestamp image of the negative events 
     """
+    
     xt, yt, ts, pt = torch.from_numpy(xn), torch.from_numpy(yn), torch.from_numpy(ts), torch.from_numpy(pn)
     xs, ys, ts, ps = xt.float(), yt.float(), ts.float(), pt.float()
     zero_v = torch.tensor([0.])
@@ -245,6 +262,15 @@ def events_to_zhu_timestamp_image(xn, yn, ts, pn,
     img_neg_cnt[img_neg_cnt==0] = 1
     return img_pos, img_neg #/img_pos_cnt, img_neg/img_neg_cnt
 
+def events_to_zhu_timestamp_image(xn, yn, ts, pn,
+        device=None, sensor_size=(180, 240), clip_out_of_range=True,
+        interpolation='bilinear', padding=True):
+    """
+    Legacy, use events_to_timestamp_image instead
+    """
+    events_to_timestamp_image(xn, yn, ts, pn, device=device, sensor_size=sensor_size,
+            clip_out_of_range=clip_out_of_range, interpolation=interpolation)
+
 def events_to_image_torch(xs, ys, ps,
         device=None, sensor_size=(180, 240), clip_out_of_range=True,
         interpolation=None, padding=True):
@@ -258,7 +284,7 @@ def events_to_image_torch(xs, ys, ps,
         :param clip_out_of_range: if the events go beyond the desired image size,
             clip the events to fit into the image
         :param interpolation: which interpolation to use. Options=None,'bilinear'
-        :param if bilinear interpolation, allow padding the image by 1 to allow events to fit:
+        :param padding if bilinear interpolation, allow padding the image by 1 to allow events to fit:
     """
     if device is None:
         device = xs.device
@@ -428,6 +454,26 @@ def events_to_voxel_torch(xs, ys, ts, ps, B, device=None, sensor_size=(180, 240)
 
 def events_to_neg_pos_voxel_torch(xs, ys, ts, ps, B, device=None,
         sensor_size=(180, 240), temporal_bilinear=True):
+    """
+    Turn set of events to a voxel grid tensor, using temporal bilinear interpolation.
+    Positive and negative events are put into separate voxel grids
+    Parameters
+    ----------
+    xs : list of event x coordinates 
+    ys : list of event y coordinates 
+    ts : list of event timestamps 
+    ps : list of event polarities 
+    B : number of bins in output voxel grids (int)
+    device : the device that the events are on
+    sensor_size : the size of the event sensor/output voxels
+    temporal_bilinear : whether the events should be naively
+        accumulated to the voxels (faster), or properly
+        temporally distributed
+    Returns
+    -------
+    voxel_pos: voxel of the positive events
+    voxel_neg: voxel of the negative events
+    """
     zero_v = torch.tensor([0.])
     ones_v = torch.tensor([1.])
     pos_weights = torch.where(ps>0, ones_v, zero_v)
@@ -441,6 +487,22 @@ def events_to_neg_pos_voxel_torch(xs, ys, ts, ps, B, device=None,
     return voxel_pos, voxel_neg
 
 def warp_events_flow_torch(xt, yt, tt, pt, flow_field, t0=None):
+    """
+    Given events and a flow field, warp the events by the flow
+    Parameters
+    ----------
+    xs : list of event x coordinates 
+    ys : list of event y coordinates 
+    ts : list of event timestamps 
+    ps : list of event polarities 
+    flow_field : 2D tensor containing the flow at each x,y position
+    t0 : the reference time to warp events to. If empty, will use the
+        timestamp of the last event
+    Returns
+    -------
+    warped_xt: x coords of warped events
+    warped_yt: y coords of warped events
+    """
     xt, yt, tt, pt = xt.squeeze(), yt.squeeze(), tt.squeeze(), pt.squeeze()
     if t0 is None:
         t0 = tt[-1]
@@ -464,9 +526,6 @@ def warp_events_flow_torch(xt, yt, tt, pt, flow_field, t0=None):
     warped_xt = xt+flow_at_event[:,0,:,:].squeeze()*dt
     warped_yt = yt+flow_at_event[:,1,:,:].squeeze()*dt
 
-    #iwe = events_to_image_torch(warped_xt, warped_yt, pt, sensor_size=flow_field.size()[-2:],
-    #        clip_out_of_range=True, interpolation='bilinear')
-
     return warped_xt, warped_yt
 
 def events_to_timestamp_image_torch(xs, ys, ts, ps,
@@ -475,6 +534,23 @@ def events_to_timestamp_image_torch(xs, ys, ts, ps,
     """
     Method to generate the average timestamp images from 'Zhu19, Unsupervised Event-based Learning 
     of Optical Flow, Depth, and Egomotion'. This method does not have known derivative.
+    Parameters
+    ----------
+    xs : list of event x coordinates 
+    ys : list of event y coordinates 
+    ts : list of event timestamps 
+    ps : list of event polarities 
+    device : the device that the events are on
+    sensor_size : the size of the event sensor/output voxels
+    clip_out_of_range: if the events go beyond the desired image size,
+       clip the events to fit into the image
+    interpolation: which interpolation to use. Options=None,'bilinear'
+    padding: if bilinear interpolation, allow padding the image by 1 to allow events to fit:
+    timestamp_reverse: reverse the timestamps of the events, for backward warp
+    Returns
+    -------
+    img_pos: timestamp image of the positive events
+    img_neg: timestamp image of the negative events 
     """
     if device is None:
         device = xs.device
@@ -566,6 +642,25 @@ def events_to_voxel(xs, ys, ts, ps, B, sensor_size=(180, 240), temporal_bilinear
 
 def events_to_neg_pos_voxel(xs, ys, ts, ps, B,
         sensor_size=(180, 240), temporal_bilinear=True):
+    """
+    Turn set of events to a voxel grid tensor, using temporal bilinear interpolation.
+    Positive and negative events are put into separate voxel grids
+    Parameters
+    ----------
+    xs : list of event x coordinates 
+    ys : list of event y coordinates 
+    ts : list of event timestamps 
+    ps : list of event polarities 
+    B : number of bins in output voxel grids (int)
+    sensor_size : the size of the event sensor/output voxels
+    temporal_bilinear : whether the events should be naively
+        accumulated to the voxels (faster), or properly
+        temporally distributed
+    Returns
+    -------
+    voxel_pos: voxel of the positive events
+    voxel_neg: voxel of the negative events
+    """
     pos_weights = np.where(ps, 1, 0)
     neg_weights = np.where(ps, 0, 1)
 
