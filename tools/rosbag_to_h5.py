@@ -158,7 +158,7 @@ if __name__ == "__main__":
     parser.add_argument("--image_topic", default=None, help="Image topic (if left empty, no images will be collected)")
     parser.add_argument("--flow_topic", default=None, help="Flow topic (if left empty, no flow will be collected)")
     parser.add_argument('--zero_timestamps', action='store_true', help='If true, timestamps will be offset to start at 0')
-    parser.add_argument('--is_color', action='store_true', help='If true, timestamps will be offset to start at 0')
+    parser.add_argument('--is_color', action='store_true', help='Set flag to save frames from image_topic as 3-channel, bgr color images')
     args = parser.parse_args()
 
     print('Data will be extracted in folder: {}'.format(args.output_dir))
