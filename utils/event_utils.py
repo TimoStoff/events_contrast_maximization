@@ -419,22 +419,37 @@ def events_to_neg_pos_voxel_torch(xs, ys, ts, ps, B, device=None,
 
     return voxel_pos, voxel_neg
 
+def unpack_batched_events(events, batch_indices):
+    maxlen = 0
+    start_idx = 0
+    for b_idx in range(len(batch_indices)):
+        end_idx = event_batch_indices[b_idx]
+        maxlen = end_idx-start_idx if end_idx-start_dx > maxlen else maxlen
+
+    unpacked_events = torch.zeros((len(batch_indices), 1, maxlen, 4))
+    start_idx = 0
+    for b_idx in range(len(batch_indices)):
+        num_events = end_idx-start_idx
+        unpacked_events[b_idx, 0, 0:num_events, :] = events[start_idx:end_idx, :]
+        start_idx = end_idx
+    return unpacked_events
+
 def warp_events_flow_torch(xt, yt, tt, pt, flow_field, t0=None):
     xt, yt, tt, pt = xt.squeeze(), yt.squeeze(), tt.squeeze(), pt.squeeze()
     if t0 is None:
         t0 = tt[-1]
     while len(flow_field.size()) < 4:
-        flow_field.unsqueeze_(0)
+        flow_field = flow_field.unsqueeze(0)
     if len(xt.size()) == 1:
         event_indices = torch.transpose(torch.stack((xt, yt), dim=0), 0, 1)
     else:
         event_indices = torch.transpose(torch.cat((xt, yt), dim=1), 0, 1)
-    event_indices.requires_grad_ = False
+    #event_indices.requires_grad_ = False
     event_indices = torch.reshape(event_indices, [1, 1, len(xt), 2])
 
     # Event indices need to be between -1 and 1 for F.gridsample
-    event_indices[:,:,:,0] = event_indices[:,:,:,0]/(flow_field.shape[3]-1)*2.0-1.0
-    event_indices[:,:,:,1] = event_indices[:,:,:,1]/(flow_field.shape[2]-1)*2.0-1.0
+    event_indices[:,:,:,0] = event_indices[:,:,:,0]/(flow_field.shape[-1]-1)*2.0-1.0
+    event_indices[:,:,:,1] = event_indices[:,:,:,1]/(flow_field.shape[-2]-1)*2.0-1.0
 
     flow_at_event = F.grid_sample(flow_field, event_indices, align_corners=True) 
     
