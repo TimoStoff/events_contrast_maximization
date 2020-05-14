@@ -24,6 +24,22 @@ def binary_search_h5_timestamp(hdf_path, l, r, x, side='left'):
         return l
     return r
 
+def binary_search_torch_tensor(t, l, r, x, side='left'):
+    if r is None:
+        r = len(t)-1
+    while l <= r:
+        mid = l + (r - l)//2;
+        midval = t[mid]
+        if midval == x:
+            return mid
+        elif midval < x:
+            l = mid + 1
+        else:
+            r = mid - 1
+    if side == 'left':
+        return l
+    return r
+
 def read_h5_events(hdf_path):
     f = h5py.File(hdf_path, 'r')
     if 'events/x' in f:
@@ -92,7 +108,11 @@ def events_to_image(xs, ys, ps, sensor_size=(180, 240), interpolation=None, padd
         img = img.numpy()
     else:
         coords = np.stack((ys, xs))
-        abs_coords = np.ravel_multi_index(coords, sensor_size)
+        try:
+            abs_coords = np.ravel_multi_index(coords, sensor_size)
+        except ValueError:
+            print("Issue with input arrays! coords={}, coords.shape={}, sum(coords)={}, sensor_size={}".format(coords, coords.shape, np.sum(coords), sensor_size))
+            raise ValueError
         img = np.bincount(abs_coords, weights=ps, minlength=sensor_size[0]*sensor_size[1])
     img = img.reshape(sensor_size)
     return img
@@ -172,13 +192,30 @@ def events_to_image_drv(xn, yn, pn, jacobian_xn, jacobian_yn,
         d_img = None
     return img.numpy(), d_img
 
-def events_to_zhu_timestamp_image(xn, yn, ts, pn,
+def events_to_timestamp_image(xn, yn, ts, pn,
         device=None, sensor_size=(180, 240), clip_out_of_range=True,
-        interpolation='bilinear', padding=True, compute_gradient=False, showimg=False):
+        interpolation='bilinear', padding=True):
     """
     Method to generate the average timestamp images from 'Zhu19, Unsupervised Event-based Learning 
     of Optical Flow, Depth, and Egomotion'. This method does not have known derivative.
+    Parameters
+    ----------
+    xs : list of event x coordinates 
+    ys : list of event y coordinates 
+    ts : list of event timestamps 
+    ps : list of event polarities 
+    device : the device that the events are on
+    sensor_size : the size of the event sensor/output voxels
+    clip_out_of_range: if the events go beyond the desired image size,
+       clip the events to fit into the image
+    interpolation: which interpolation to use. Options=None,'bilinear'
+    padding: if bilinear interpolation, allow padding the image by 1 to allow events to fit:
+    Returns
+    -------
+    img_pos: timestamp image of the positive events
+    img_neg: timestamp image of the negative events 
     """
+    
     xt, yt, ts, pt = torch.from_numpy(xn), torch.from_numpy(yn), torch.from_numpy(ts), torch.from_numpy(pn)
     xs, ys, ts, ps = xt.float(), yt.float(), ts.float(), pt.float()
     zero_v = torch.tensor([0.])
@@ -225,6 +262,15 @@ def events_to_zhu_timestamp_image(xn, yn, ts, pn,
     img_neg_cnt[img_neg_cnt==0] = 1
     return img_pos, img_neg #/img_pos_cnt, img_neg/img_neg_cnt
 
+def events_to_zhu_timestamp_image(xn, yn, ts, pn,
+        device=None, sensor_size=(180, 240), clip_out_of_range=True,
+        interpolation='bilinear', padding=True):
+    """
+    Legacy, use events_to_timestamp_image instead
+    """
+    events_to_timestamp_image(xn, yn, ts, pn, device=device, sensor_size=sensor_size,
+            clip_out_of_range=clip_out_of_range, interpolation=interpolation)
+
 def events_to_image_torch(xs, ys, ps,
         device=None, sensor_size=(180, 240), clip_out_of_range=True,
         interpolation=None, padding=True):
@@ -238,14 +284,14 @@ def events_to_image_torch(xs, ys, ps,
         :param clip_out_of_range: if the events go beyond the desired image size,
             clip the events to fit into the image
         :param interpolation: which interpolation to use. Options=None,'bilinear'
-        :param if bilinear interpolation, allow padding the image by 1 to allow events to fit:
+        :param padding if bilinear interpolation, allow padding the image by 1 to allow events to fit:
     """
     if device is None:
         device = xs.device
     if interpolation == 'bilinear' and padding:
         img_size = (sensor_size[0]+1, sensor_size[1]+1)
     else:
-        img_size = sensor_size
+        img_size = list(sensor_size)
 
     mask = torch.ones(xs.size(), device=device)
     if clip_out_of_range:
@@ -383,7 +429,6 @@ def events_to_voxel_torch(xs, ys, ts, ps, B, device=None, sensor_size=(180, 240)
     if device is None:
         device = xs.device
     assert(len(xs)==len(ys) and len(ys)==len(ts) and len(ts)==len(ps))
-    num_events_per_bin = len(xs)//B
     bins = []
     dt = ts[-1]-ts[0]
     t_norm = (ts-ts[0])/dt*(B-1)
@@ -392,21 +437,43 @@ def events_to_voxel_torch(xs, ys, ts, ps, B, device=None, sensor_size=(180, 240)
         if temporal_bilinear:
             bilinear_weights = torch.max(zeros, 1.0-torch.abs(t_norm-bi))
             weights = ps*bilinear_weights
-        else:
-            beg = bi*num_events_per_bin
-            end = beg + num_events_per_bin
-            vb = events_to_image_torch(xs[beg:end], ys[beg:end],
-                    weights[beg:end], device, sensor_size=sensor_size,
+            vb = events_to_image_torch(xs, ys,
+                    weights, device, sensor_size=sensor_size,
                     clip_out_of_range=False)
-        vb = events_to_image_torch(xs, ys,
-                weights, device, sensor_size=sensor_size,
-                clip_out_of_range=False)
+        else:
+            tstart = t[0] + dt*bi
+            tend = tstart + dt
+            beg = binary_search_torch_tensor(t, 0, len(ts)-1, tstart) 
+            end = binary_search_torch_tensor(t, 0, len(ts)-1, tend) 
+            vb = events_to_image_torch(xs[beg:end], ys[beg:end],
+                    ps[beg:end], device, sensor_size=sensor_size,
+                    clip_out_of_range=False)
         bins.append(vb)
     bins = torch.stack(bins)
     return bins
 
 def events_to_neg_pos_voxel_torch(xs, ys, ts, ps, B, device=None,
         sensor_size=(180, 240), temporal_bilinear=True):
+    """
+    Turn set of events to a voxel grid tensor, using temporal bilinear interpolation.
+    Positive and negative events are put into separate voxel grids
+    Parameters
+    ----------
+    xs : list of event x coordinates 
+    ys : list of event y coordinates 
+    ts : list of event timestamps 
+    ps : list of event polarities 
+    B : number of bins in output voxel grids (int)
+    device : the device that the events are on
+    sensor_size : the size of the event sensor/output voxels
+    temporal_bilinear : whether the events should be naively
+        accumulated to the voxels (faster), or properly
+        temporally distributed
+    Returns
+    -------
+    voxel_pos: voxel of the positive events
+    voxel_neg: voxel of the negative events
+    """
     zero_v = torch.tensor([0.])
     ones_v = torch.tensor([1.])
     pos_weights = torch.where(ps>0, ones_v, zero_v)
@@ -435,6 +502,22 @@ def unpack_batched_events(events, batch_indices):
     return unpacked_events
 
 def warp_events_flow_torch(xt, yt, tt, pt, flow_field, t0=None):
+    """
+    Given events and a flow field, warp the events by the flow
+    Parameters
+    ----------
+    xs : list of event x coordinates 
+    ys : list of event y coordinates 
+    ts : list of event timestamps 
+    ps : list of event polarities 
+    flow_field : 2D tensor containing the flow at each x,y position
+    t0 : the reference time to warp events to. If empty, will use the
+        timestamp of the last event
+    Returns
+    -------
+    warped_xt: x coords of warped events
+    warped_yt: y coords of warped events
+    """
     xt, yt, tt, pt = xt.squeeze(), yt.squeeze(), tt.squeeze(), pt.squeeze()
     if t0 is None:
         t0 = tt[-1]
@@ -458,9 +541,6 @@ def warp_events_flow_torch(xt, yt, tt, pt, flow_field, t0=None):
     warped_xt = xt+flow_at_event[:,0,:,:].squeeze()*dt
     warped_yt = yt+flow_at_event[:,1,:,:].squeeze()*dt
 
-    #iwe = events_to_image_torch(warped_xt, warped_yt, pt, sensor_size=flow_field.size()[-2:],
-    #        clip_out_of_range=True, interpolation='bilinear')
-
     return warped_xt, warped_yt
 
 def events_to_timestamp_image_torch(xs, ys, ts, ps,
@@ -469,6 +549,23 @@ def events_to_timestamp_image_torch(xs, ys, ts, ps,
     """
     Method to generate the average timestamp images from 'Zhu19, Unsupervised Event-based Learning 
     of Optical Flow, Depth, and Egomotion'. This method does not have known derivative.
+    Parameters
+    ----------
+    xs : list of event x coordinates 
+    ys : list of event y coordinates 
+    ts : list of event timestamps 
+    ps : list of event polarities 
+    device : the device that the events are on
+    sensor_size : the size of the event sensor/output voxels
+    clip_out_of_range: if the events go beyond the desired image size,
+       clip the events to fit into the image
+    interpolation: which interpolation to use. Options=None,'bilinear'
+    padding: if bilinear interpolation, allow padding the image by 1 to allow events to fit:
+    timestamp_reverse: reverse the timestamps of the events, for backward warp
+    Returns
+    -------
+    img_pos: timestamp image of the positive events
+    img_neg: timestamp image of the negative events 
     """
     if device is None:
         device = xs.device
@@ -560,6 +657,25 @@ def events_to_voxel(xs, ys, ts, ps, B, sensor_size=(180, 240), temporal_bilinear
 
 def events_to_neg_pos_voxel(xs, ys, ts, ps, B,
         sensor_size=(180, 240), temporal_bilinear=True):
+    """
+    Turn set of events to a voxel grid tensor, using temporal bilinear interpolation.
+    Positive and negative events are put into separate voxel grids
+    Parameters
+    ----------
+    xs : list of event x coordinates 
+    ys : list of event y coordinates 
+    ts : list of event timestamps 
+    ps : list of event polarities 
+    B : number of bins in output voxel grids (int)
+    sensor_size : the size of the event sensor/output voxels
+    temporal_bilinear : whether the events should be naively
+        accumulated to the voxels (faster), or properly
+        temporally distributed
+    Returns
+    -------
+    voxel_pos: voxel of the positive events
+    voxel_neg: voxel of the negative events
+    """
     pos_weights = np.where(ps, 1, 0)
     neg_weights = np.where(ps, 0, 1)
 

@@ -15,6 +15,30 @@ To implement your own objective functions, check out `utils/objectives.py` to im
 ## Dependencies
 You need to be running at least Python 3 and have PyTorch installed (GPU not necessary). 
 
+## Overview
+This library contains functions for generally useful event-based vision tasks. Here is q quick overview:
+### Tools
+#### Event conversions
+-`rosbag_to_h5.py` converts rosbag events to HDF5 files, together with lots of useful metadata (for example, images contain the index of the time-synchronized event). Works for color event cameras.
+
+-`h5_to_memmap.py` converts HDF5 events to MemMap events, as sometimes used at [RPG](http://rpg.ifi.uzh.ch/).
+
+Implementing your own data format converter is easy, by implementing an event packager in `event_packagers.py`.
+
+### Utils
+This contains the contrast maximization code as well as a load of other utility functions.
+#### `event_utils.py`
+- Binary search over timestamps for HDF5 files (this means you don't need to load the entire event sequence into RAM to search) and binary search of events as tensors.
+- Loading HDF5 events (`read_h5_events`)
+- Turn a voxel grid into an image (each 'slice' placed side by side) (`get_voxel_grid_as_image`, `plot_voxel_grid`)
+- Get a mask for all events out of a certain spatial bounds (`events_bounds_mask`, `clip_events_to_bounds`)
+-  Turn a set of events to an image (`events_to_image`, `events_to_image_torch`) turns a set of events into an image. If the event coordinates are floating point, due to camera calibration or other transforming, this can be done with ilinear interpolation. If some warp has been applied to the events and the jacobian of that warp is available, you may compute the derivative images using `events_to_image_drv`. You may also get an average timestamp image as described in [`Unsupervised Event-based Learning of Optical Flow, Depth, and Egomotion`](https://arxiv.org/abs/1812.08156) with `events_to_timestamp_image`, `events_to_timestamp_image_torch` (currently the only public implementation of this).
+- Generate voxel grids. This is frequently required for [deep learning](https://timostoff.github.io/20ecnn) with events. You can generate voxel grids with fixed k events (`voxel_grids_fixed_n_torch`), fixed t-seconds (`voxel_grids_fixed_t_torch`) between two times (`events_to_voxel_timesync_torch`) or simply turn the entire collection of events into a single voxels (`events_to_voxel`, `events_to_voxel_torch`). You can also get the voxel grid positive and negative channels separately if you wish (`events_to_neg_pos_voxel`, `events_to_neg_pos_voxel_torch`). So you can see, there are many options.
+- Warp events over a flow field (`warp_events_flow_torch`).
+When functions are appended with `_torch`, it indicates that the method expects data inputs to be `torch.tensor`, otherwise `np.array` is expected.
+#### `events_cmax.py`
+Contains the code for running contrast maximization with various objectives/warp functions on the events. To implement your own warp function, see `warps.py`, for your own objective functions see `objectives.py`. For example code, see the main code in `events_cmax`.
+
 ## Citation
 If you use any of this code, please cite: T. Stoffregen and L. Kleeman, Event Cameras, Contrast Maximization and Reward Functions: An Analysis, The IEEE Conference on Computer Vision and Pattern Recognition (CVPR), June 2019.
 ```

@@ -1,3 +1,4 @@
+import glob
 import argparse
 import rosbag
 import rospy
@@ -7,14 +8,17 @@ import h5py
 import numpy as np
 from event_packagers import *
 
+
 def append_to_dataset(dataset, data):
     dataset.resize(dataset.shape[0] + len(data), axis=0)
     if len(data) == 0:
         return
     dataset[-len(data):] = data[:]
 
+
 def timestamp_float(ts):
     return ts.secs + ts.nsecs / float(1e9)
+
 
 def get_rosbag_stats(bag, event_topic, image_topic=None, flow_topic=None):
     num_event_msgs = 0
@@ -22,7 +26,7 @@ def get_rosbag_stats(bag, event_topic, image_topic=None, flow_topic=None):
     num_flow_msgs = 0
     topics = bag.get_type_and_topic_info().topics
     for topic_name, topic_info in topics.iteritems():
-        if topic_name == args.event_topic:
+        if topic_name == event_topic:
             num_event_msgs = topic_info.message_count
             print('Found events topic: {} with {} messages'.format(topic_name, topic_info.message_count))
         if topic_name == image_topic:
@@ -33,10 +37,12 @@ def get_rosbag_stats(bag, event_topic, image_topic=None, flow_topic=None):
             print('Found flow topic: {} with {} messages'.format(topic_name, num_flow_msgs))
     return num_event_msgs, num_img_msgs, num_flow_msgs
 
-#Inspired by https://github.com/uzh-rpg/rpg_e2vid
+
+# Inspired by https://github.com/uzh-rpg/rpg_e2vid
 def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
-        flow_topic=None, start_time=None, end_time=None, zero_timestamps=False, packager=hdf5_packager):
-    ep = hdf5_packager(output_path)
+                   flow_topic=None, start_time=None, end_time=None, zero_timestamps=False,
+                   packager=hdf5_packager, is_color=False):
+    ep = packager(output_path)
     topics = (event_topic, image_topic, flow_topic)
     event_msg_sum = 0
     num_msgs_between_logs = 25
@@ -54,7 +60,6 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
         max_buffer_size = 1000000
         ep.set_data_available(num_img_msgs, num_flow_msgs)
         num_pos, num_neg, last_ts, img_cnt, flow_cnt = 0, 0, 0, 0, 0
-        image_timestamps = []
 
         for topic, msg, t in bag.read_messages():
             if first_ts == -1 and topic in topics:
@@ -71,11 +76,13 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
 
             if topic == image_topic:
                 timestamp = timestamp_float(msg.header.stamp)-(first_ts if zero_timestamps else 0)
-                image = CvBridge().imgmsg_to_cv2(msg, "mono8")
+                if is_color:
+                    image = CvBridge().imgmsg_to_cv2(msg, "bgr8")
+                else:
+                    image = CvBridge().imgmsg_to_cv2(msg, "mono8")
 
                 ep.package_image(image, timestamp, img_cnt)
                 sensor_size = image.shape
-                last_img_ts = timestamp
                 img_cnt += 1
 
             elif topic == flow_topic:
@@ -107,8 +114,9 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
                     last_ts = timestamp
                 if (len(xs) > max_buffer_size and timestamp >= start_time) or (end_time is not None and timestamp >= start_time):
                     # print("Writing events")
-                    if sensor_size is None or sensor_size[0] < max(xs) or sensor_size[1] < max(ys):
+                    if sensor_size is None or sensor_size[0] < max(ys) or sensor_size[1] < max(xs):
                         sensor_size = [max(xs), max(ys)]
+                        print("Sensor size inferred from events as {}".format(sensor_size))
                     ep.package_events(xs, ys, ts, ps)
                     del xs[:]
                     del ys[:]
@@ -116,21 +124,27 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
                     del ps[:]
                 if end_time is not None and timestamp >= start_time:
                     return
-                if sensor_size is None or sensor_size[0] < max(xs) or sensor_size[1] < max(ys):
+                if sensor_size is None or sensor_size[0] < max(ys) or sensor_size[1] < max(xs):
                     sensor_size = [max(xs), max(ys)]
+                    print("Sensor size inferred from events as {}".format(sensor_size))
                 ep.package_events(xs, ys, ts, ps)
                 del xs[:]
                 del ys[:]
                 del ts[:]
                 del ps[:]
+        print("Detect sensor size {}".format(sensor_size))
         ep.add_metadata(num_pos, num_neg, last_ts-t0, t0, last_ts, img_cnt, flow_cnt, sensor_size)
 
-def extract_rosbags(rosbag_paths, output_dir, event_topic, image_topic, flow_topic, zero_timestamps=False):
+
+def extract_rosbags(rosbag_paths, output_dir, event_topic, image_topic, flow_topic,
+        zero_timestamps=False, is_color=False):
     for path in rosbag_paths:
         bagname = os.path.splitext(os.path.basename(path))[0]
         out_path = os.path.join(output_dir, "{}.h5".format(bagname))
         print("Extracting {} to {}".format(path, out_path))
-        extract_rosbag(path, out_path, event_topic, image_topic=image_topic, flow_topic=flow_topic, zero_timestamps=zero_timestamps)
+        extract_rosbag(path, out_path, event_topic, image_topic=image_topic,
+                       flow_topic=flow_topic, zero_timestamps=zero_timestamps, is_color=is_color)
+
 
 if __name__ == "__main__":
     """
@@ -144,13 +158,15 @@ if __name__ == "__main__":
     parser.add_argument("--image_topic", default=None, help="Image topic (if left empty, no images will be collected)")
     parser.add_argument("--flow_topic", default=None, help="Flow topic (if left empty, no flow will be collected)")
     parser.add_argument('--zero_timestamps', action='store_true', help='If true, timestamps will be offset to start at 0')
+    parser.add_argument('--is_color', action='store_true', help='Set flag to save frames from image_topic as 3-channel, bgr color images')
     args = parser.parse_args()
 
     print('Data will be extracted in folder: {}'.format(args.output_dir))
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
     if os.path.isdir(args.path):
-        rosbag_paths = sorted(glob.glob(os.path.join(args.path, ".bag")))
+        rosbag_paths = sorted(glob.glob(os.path.join(args.path, "*.bag")))
     else:
         rosbag_paths = [args.path]
-    extract_rosbags(rosbag_paths, args.output_dir, args.event_topic, args.image_topic, args.flow_topic, args.zero_timestamps)
+    extract_rosbags(rosbag_paths, args.output_dir, args.event_topic, args.image_topic,
+            args.flow_topic, zero_timestamps=args.zero_timestamps, is_color=args.is_color)
