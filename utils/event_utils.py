@@ -487,6 +487,22 @@ def events_to_neg_pos_voxel_torch(xs, ys, ts, ps, B, device=None,
     return voxel_pos, voxel_neg
 
 def unpack_batched_events(events, batch_indices):
+    """
+    When returning events from a pytorch dataloader, it is often convenient when
+    batching, to place them into a contiguous 1x1xNx4 array, where N=length of all
+    B event arrays in the batch. This function unpacks the events into a Bx1xMx4 array,
+    where B is the batch size, M is the length of the *longest* event array in the
+    batch. The shorter event arrays are then padded with zeros.
+    Parameters
+    ----------
+    events : 1x1xNx4 array of the events
+    batch_indices : A list of the end indices of events, where one event array ends and
+    the next begins. For example, if you batched two event arrays A and B of length
+    200 and 700 respectively, batch_indices=[200, 900]
+    Returns
+    -------
+    unpacked_events: Bx1xMx4 array of unpacked events
+    """
     maxlen = 0
     start_idx = 0
     for b_idx in range(len(batch_indices)):
@@ -501,7 +517,8 @@ def unpack_batched_events(events, batch_indices):
         start_idx = end_idx
     return unpacked_events
 
-def warp_events_flow_torch(xt, yt, tt, pt, flow_field, t0=None):
+def warp_events_flow_torch(xt, yt, tt, pt, flow_field, t0=None,
+        batched=False, batch_indices=None):
     """
     Given events and a flow field, warp the events by the flow
     Parameters
@@ -518,7 +535,8 @@ def warp_events_flow_torch(xt, yt, tt, pt, flow_field, t0=None):
     warped_xt: x coords of warped events
     warped_yt: y coords of warped events
     """
-    xt, yt, tt, pt = xt.squeeze(), yt.squeeze(), tt.squeeze(), pt.squeeze()
+    if len(xt.shape) > 1:
+        xt, yt, tt, pt = xt.squeeze(), yt.squeeze(), tt.squeeze(), pt.squeeze()
     if t0 is None:
         t0 = tt[-1]
     while len(flow_field.size()) < 4:
