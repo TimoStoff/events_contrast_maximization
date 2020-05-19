@@ -303,10 +303,10 @@ def events_to_image_torch(xs, ys, ps,
 
     img = torch.zeros(img_size).to(device)
     if interpolation == 'bilinear' and xs.dtype is not torch.long and xs.dtype is not torch.long:
-        pxs = xs.floor()
-        pys = ys.floor()
-        dxs = xs-pxs
-        dys = ys-pys
+        pxs = (xs.floor()).float()
+        pys = (ys.floor()).float()
+        dxs = (xs-pxs).float()
+        dys = (ys-pys).float()
         pxs = (pxs*mask).long()
         pys = (pys*mask).long()
         masked_ps = ps.squeeze()*mask
@@ -608,16 +608,16 @@ def events_to_timestamp_image_torch(xs, ys, ts, ps,
         normalized_ts = ((-ts+ts[-1])/(ts[-1]-ts[0]+epsilon)).squeeze()
     else:
         normalized_ts = ((ts-ts[0])/(ts[-1]-ts[0]+epsilon)).squeeze()
-    pxs = xs.floor()
-    pys = ys.floor()
-    dxs = xs-pxs
-    dys = ys-pys
+    pxs = xs.floor().float()
+    pys = ys.floor().float()
+    dxs = (xs-pxs).float() 
+    dys = (ys-pys).float()
     pxs = (pxs*mask).long()
     pys = (pys*mask).long()
     masked_ps = ps*mask
 
-    pos_weights = normalized_ts*pos_events_mask
-    neg_weights = normalized_ts*neg_events_mask
+    pos_weights = (normalized_ts*pos_events_mask).float()
+    neg_weights = (normalized_ts*neg_events_mask).float()
     img_pos = torch.zeros(img_size).to(device)
     img_pos_cnt = torch.ones(img_size).to(device)
     img_neg = torch.zeros(img_size).to(device)
