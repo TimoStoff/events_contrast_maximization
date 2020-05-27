@@ -1,5 +1,6 @@
 import h5py
 import numpy as np
+import os
 
 def compute_indices(event_stamps, frame_stamps):
     indices_first = np.searchsorted(event_stamps[:,0], frame_stamps[1:])
@@ -11,11 +12,11 @@ def read_memmap_events(memmap_path, skip_frames=1, return_events=False, images_f
         images_ts_file = 'timestamps.npy', optic_flow_file = 'optic_flow.npy',
         optic_flow_ts_file = 'optic_flow_timestamps.npy', events_xy_file = 'xy.npy',
         events_p_file = 'p.npy', events_t_file = 't.npy'):
-    assert os.path.isdir(rootdir), '%s is not a valid rootdirectory' % rootdir
+    assert os.path.isdir(memmap_path), '%s is not a valid memmap_pathectory' % memmap_path
 
     data = {}
     has_flow = False
-    for subroot, _, fnames in sorted(os.walk(rootdir)):
+    for subroot, _, fnames in sorted(os.walk(memmap_path)):
         for fname in sorted(fnames):
             path = os.path.join(subroot, fname)
             if fname.endswith(".npy"):
@@ -35,7 +36,7 @@ def read_memmap_events(memmap_path, skip_frames=1, return_events=False, images_f
                     data["optic_flow_stamps"] = np.load(path)[::skip_frames,...]
 
                 handle = np.load(path, mmap_mode="r")
-                elif fname==events_t_file:  # timestamps
+                if fname==events_t_file:  # timestamps
                     data["t"] = handle[:].squeeze() if return_events else handle
                     data["t0"] = handle[0]
                 elif fname==events_xy_file: # coordinates
@@ -46,13 +47,13 @@ def read_memmap_events(memmap_path, skip_frames=1, return_events=False, images_f
         if len(data) > 0:
             data['path'] = subroot
             if "t" not in data:
-                raise Exception(f"Ignoring rootdirectory {subroot} since no events")
+                raise Exception(f"Ignoring memmap_pathectory {subroot} since no events")
             if not (len(data['p']) == len(data['xy']) and len(data['p']) == len(data['t'])):
                 raise Exception(f"Events from {subroot} invalid")
             data["num_events"] = len(data['p'])
 
             if "index" not in data and "frame_stamps" in data:
-                data["index"] = compute_indices(data["t"], data['frame_stamps'], event_window_ms)
+                data["index"] = compute_indices(data["t"], data['frame_stamps'])
     return data
 
 def read_h5_events(hdf_path):
