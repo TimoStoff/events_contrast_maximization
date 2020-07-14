@@ -271,7 +271,7 @@ def events_to_zhu_timestamp_image(xn, yn, ts, pn,
     """
     Legacy, use events_to_timestamp_image instead
     """
-    events_to_timestamp_image(xn, yn, ts, pn, device=device, sensor_size=sensor_size,
+    return events_to_timestamp_image(xn, yn, ts, pn, device=device, sensor_size=sensor_size,
             clip_out_of_range=clip_out_of_range, interpolation=interpolation)
 
 def events_to_image_torch(xs, ys, ps,

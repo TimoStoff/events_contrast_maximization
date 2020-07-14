@@ -384,7 +384,7 @@ class zhu_timestamp_objective(objective_function):
             xs, ys, jx, jy = warpfunc.warp(xs, ys, ts, ps, ts[-1], params, compute_grad=False)
             mask = events_bounds_mask(xs, ys, 0, img_size[1], 0, img_size[0])
             xs, ys, ts, ps = xs*mask, ys*mask, ts*mask, ps*mask
-            posimg, negimg = events_to_zhu_timestamp_image(xs, ys, ts, ps, compute_gradient=False, showimg=showimg)
+            posimg, negimg = events_to_zhu_timestamp_image(xs, ys, ts, ps)
         blur_sigma=self.default_blur if blur_sigma is None else blur_sigma
         if blur_sigma > 0:
             posimg = gaussian_filter(posimg, blur_sigma)
