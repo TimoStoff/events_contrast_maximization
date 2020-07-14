@@ -8,6 +8,10 @@ import torch
 import torch.nn.functional as F
 
 def binary_search_h5_dset(dset, x, l=None, r=None, side='left'):
+    """
+    Binary search through a sorted HDF5 pre-loaded dataset (memory efficient
+    as the entire DSET is _not_ loaded into RAM)
+    """
     l = 0 if l is None else l
     r = len(dset)-1 if r is None else r
     while l <= r:
@@ -24,10 +28,16 @@ def binary_search_h5_dset(dset, x, l=None, r=None, side='left'):
     return r
 
 def binary_search_h5_timestamp(hdf_path, l, r, x, side='left'):
+    """
+    Find index of timestamp in the events of HDF5 events file
+    """
     f = h5py.File(hdf_path, 'r')
     return binary_search_h5_dset(f['events/ts'], x, l=l, r=r, side=side)
 
 def binary_search_torch_tensor(t, l, r, x, side='left'):
+    """
+    Binary search sorted pytorch tensor
+    """
     if r is None:
         r = len(t)-1
     while l <= r:
@@ -44,6 +54,9 @@ def binary_search_torch_tensor(t, l, r, x, side='left'):
     return r
 
 def read_h5_events(hdf_path):
+    """
+    Read events from HDF5 file into 4xN numpy array (N=number of events)
+    """
     f = h5py.File(hdf_path, 'r')
     if 'events/x' in f:
         #legacy
@@ -53,6 +66,9 @@ def read_h5_events(hdf_path):
     return events
 
 def read_h5_event_components(hdf_path):
+    """
+    Read events from HDF5 file. Return x,y,t,p components.
+    """
     f = h5py.File(hdf_path, 'r')
     if 'events/x' in f:
         #legacy
@@ -61,6 +77,9 @@ def read_h5_event_components(hdf_path):
         return (f['events/xs'][:], f['events/ys'][:], f['events/ts'][:], np.where(f['events/ps'][:], 1, -1))
 
 def plot_image(image, lognorm=False, cmap='gray'):
+    """
+    Show an image in a matplotlib window
+    """
     if lognorm:
         image = np.log10(image)
         cmap='viridis'
@@ -68,7 +87,38 @@ def plot_image(image, lognorm=False, cmap='gray'):
     plt.imshow(image, cmap=cmap)
     plt.show()
 
+def save_image(image, lognorm=False, cmap='gray', save_path="/tmp/img.jpg"):
+    """
+    Save an image
+    """
+    if lognorm:
+        image = np.log10(image)
+        cmap='viridis'
+    image = cv.normalize(image, None, 0, 255, cv.NORM_MINMAX)
+    cv.imwrite(save_path, image)
+
+def get_hot_event_mask(xs, ys, ps, sensor_size, num_hot = 100):
+    """
+    Given a set of events, generate a hot pixel mask
+        :param xs: tensor of x coords of events
+        :param ys: tensor of y coords of events
+        :param ps: tensor of event polarities/weights
+        :param sensor_size: size of the image sensor the events came from
+        :param num_hot: remove the top 'num_hot' pixels
+        :return: returns a mask with 1s for good pixels and 0s for the hot pixels
+    """
+    img = events_to_image(xs, ys, ps, sensor_size)
+    mask = np.ones_like(img)
+    for idx in range(num_hot):
+        idx = np.unravel_index(np.argmax(img), img.shape)
+        mask[idx] = 0
+        img[idx] = 0
+    return mask
+
 def get_voxel_grid_as_image(voxelgrid):
+    """
+    Generate an image of side-by-side bins of a voxel grid
+    """
     images = []
     splitter = np.ones((voxelgrid.shape[1], 2))*np.max(voxelgrid)
     for image in voxelgrid:
@@ -80,6 +130,9 @@ def get_voxel_grid_as_image(voxelgrid):
     return sidebyside
 
 def plot_voxel_grid(voxelgrid, cmap='gray'):
+    """
+    Show visualization of a voxel grid (each bin as an image)
+    """
     sidebyside = get_voxel_grid_as_image(voxelgrid)
     plt.imshow(sidebyside, cmap=cmap)
     plt.show()
@@ -114,7 +167,7 @@ def events_to_image(xs, ys, ps, sensor_size=(180, 240), interpolation=None, padd
         try:
             abs_coords = np.ravel_multi_index(coords, sensor_size)
         except ValueError:
-            print("Issue with input arrays! coords={}, coords.shape={}, sum(coords)={}, sensor_size={}".format(coords, coords.shape, np.sum(coords), sensor_size))
+            print("Issue with input arrays! coords.shape={}, sum(coords)={}, sensor_size={}. \n minx={}, maxx={}, miny={}, maxy={}".format(coords.shape, np.sum(coords), sensor_size, np.min(xs), np.max(xs), np.min(ys), np.max(ys)))
             raise ValueError
         img = np.bincount(abs_coords, weights=ps, minlength=sensor_size[0]*sensor_size[1])
     img = img.reshape(sensor_size)
