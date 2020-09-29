@@ -41,14 +41,13 @@ def get_rosbag_stats(bag, event_topic, image_topic=None, flow_topic=None):
 # Inspired by https://github.com/uzh-rpg/rpg_e2vid
 def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
                    flow_topic=None, start_time=None, end_time=None, zero_timestamps=False,
-                   packager=hdf5_packager, is_color=False):
+                   packager=hdf5_packager, is_color=False, sensor_size=None):
     ep = packager(output_path)
     topics = (event_topic, image_topic, flow_topic)
     event_msg_sum = 0
     num_msgs_between_logs = 25
     first_ts = -1
     t0 = -1
-    sensor_size = None
     if not os.path.exists(rosbag_path):
         print("{} does not exist!".format(rosbag_path))
         return
@@ -137,13 +136,14 @@ def extract_rosbag(rosbag_path, output_path, event_topic, image_topic=None,
 
 
 def extract_rosbags(rosbag_paths, output_dir, event_topic, image_topic, flow_topic,
-        zero_timestamps=False, is_color=False):
+        zero_timestamps=False, is_color=False, sensor_size=None):
     for path in rosbag_paths:
         bagname = os.path.splitext(os.path.basename(path))[0]
         out_path = os.path.join(output_dir, "{}.h5".format(bagname))
         print("Extracting {} to {}".format(path, out_path))
         extract_rosbag(path, out_path, event_topic, image_topic=image_topic,
-                       flow_topic=flow_topic, zero_timestamps=zero_timestamps, is_color=is_color)
+                       flow_topic=flow_topic, zero_timestamps=zero_timestamps,
+                       is_color=is_color, sensor_size=sensor_size)
 
 
 if __name__ == "__main__":
@@ -159,6 +159,8 @@ if __name__ == "__main__":
     parser.add_argument("--flow_topic", default=None, help="Flow topic (if left empty, no flow will be collected)")
     parser.add_argument('--zero_timestamps', action='store_true', help='If true, timestamps will be offset to start at 0')
     parser.add_argument('--is_color', action='store_true', help='Set flag to save frames from image_topic as 3-channel, bgr color images')
+    parser.add_argument('--height', type=int, default=None)
+    parser.add_argument('--width',  type=int, default=None)
     args = parser.parse_args()
 
     print('Data will be extracted in folder: {}'.format(args.output_dir))
@@ -168,5 +170,11 @@ if __name__ == "__main__":
         rosbag_paths = sorted(glob.glob(os.path.join(args.path, "*.bag")))
     else:
         rosbag_paths = [args.path]
+    if args.height is None or args.width is None:
+        sensor_size = None
+    else:
+        sensor_size = [args.height, args.width]
+
     extract_rosbags(rosbag_paths, args.output_dir, args.event_topic, args.image_topic,
-            args.flow_topic, zero_timestamps=args.zero_timestamps, is_color=args.is_color)
+            args.flow_topic, zero_timestamps=args.zero_timestamps, is_color=args.is_color,
+            sensor_size=sensor_size)
