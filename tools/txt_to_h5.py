@@ -23,7 +23,6 @@ def get_sensor_size(txt_path):
 def extract_txt(txt_path, output_path, zero_timestamps=False,
                 packager=hdf5_packager):
     ep = packager(output_path)
-    num_msgs_between_logs = 25
     first_ts = -1
     t0 = -1
     if not os.path.exists(txt_path):
@@ -33,29 +32,27 @@ def extract_txt(txt_path, output_path, zero_timestamps=False,
     # compute sensor size
     sensor_size = get_sensor_size(txt_path)
     # Extract events to h5
-    xs, ys, ts, ps = [], [], [], []
-    ep.set_data_available(num_img_msgs, num_flow_msgs)
-    num_pos, num_neg, last_ts, img_cnt, flow_cnt = 0, 0, 0, 0, 0
+    ep.set_data_available(num_images=0, num_flow=0)
+    total_num_pos, total_num_neg, last_ts = 0, 0, 0
 
-
+    chunksize = 100000
     iterator = pd.read_csv(txt_path, delim_whitespace=True, header=None,
                            names=['t', 'x', 'y', 'pol'],
                            dtype={'t': np.float64, 'x': np.int16, 'y': np.int16, 'pol': np.int16},
                            engine='c',
-                           skiprows=1, chunksize=100000, nrows=None, memory_map=True)
+                           skiprows=1, chunksize=chunksize, nrows=None, memory_map=True)
 
     for i, event_window in enumerate(iterator):
-        ts = event_window[:, 0]
-        xs = event_window[:, 1].astype(np.int)
-        ys = event_window[:, 2].astype(np.int)
-        ps = event_window[:, 3]
+        events = event_window.values
+        ts = events[:, 0].astype(np.float64)
+        xs = events[:, 1].astype(np.int16)
+        ys = events[:, 2].astype(np.int16)
+        ps = events[:, 3]
         ps[ps < 0] = 0 # should be [0 or 1]
+        ps = ps.astype(bool)
 
         if first_ts == -1:
             first_ts = ts[0]
-
-        if i % num_msgs_between_logs == 0:
-            print('Progress: {} / {}'.format(i + 1, len(iterator)))
 
         if zero_timestamps:
             ts -= first_ts
@@ -64,16 +61,16 @@ def extract_txt(txt_path, output_path, zero_timestamps=False,
             sensor_size = [max(xs), max(ys)]
             print("Sensor size inferred from events as {}".format(sensor_size))
 
-        num_pos += sum(ps)
-        num_neg += len(ps) - sum(ps)
+        sum_ps = sum(ps)
+        total_num_pos += sum_ps
+        total_num_neg += len(ps) - sum_ps
         ep.package_events(xs, ys, ts, ps)
-        del xs[:]
-        del ys[:]
-        del ts[:]
-        del ps[:]
+        if i % 10 == 9:
+            print('Events written: {} M'.format((total_num_pos + total_num_neg) / 1e6)) 
+    print('Events written: {} M'.format((total_num_pos + total_num_neg) / 1e6)) 
     print("Detect sensor size {}".format(sensor_size))
-    t0 = 0 if zero_timestamp else first_ts
-    ep.add_metadata(num_pos, num_neg, last_ts-t0, t0, last_ts, num_imgs=0, num_flow=0, sensor_size=sensor_size)
+    t0 = 0 if zero_timestamps else first_ts
+    ep.add_metadata(total_num_pos, total_num_neg, last_ts-t0, t0, last_ts, num_imgs=0, num_flow=0, sensor_size=sensor_size)
 
 
 def extract_txts(txt_paths, output_dir, zero_timestamps=False):
@@ -99,7 +96,8 @@ if __name__ == "__main__":
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
     if os.path.isdir(args.path):
-        txt_paths = sorted(glob.glob(os.path.join(args.path, "*.bag")))
+        txt_paths = sorted(list(glob.glob(os.path.join(args.path, "*.txt")))
+                         + list(glob.glob(os.path.join(args.path, "*.zip"))))
     else:
         txt_paths = [args.path]
     extract_txts(txt_paths, args.output_dir, zero_timestamps=args.zero_timestamps)
