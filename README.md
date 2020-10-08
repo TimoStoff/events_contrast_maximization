@@ -23,15 +23,13 @@ This library contains functions for generally useful event-based vision tasks. H
 
 -`txt_to_h5.py` converts txt or zip file events to HDF5 files, together with lots of useful metadata. Input txt or zip event files match format used in [rpg_e2vid](https://github.com/uzh-rpg/rpg_e2vid):
 
-    width height
-
-    t1 x1 y1 p1
-
-    t2 x2 y2 p2
-
-    t3 x3 y3 p3
-    
-    ...
+```
+width height
+t1 x1 y1 p1
+t2 x2 y2 p2
+t3 x3 y3 p3
+...
+```
 
 -`h5_to_memmap.py` converts HDF5 events to MemMap events, as sometimes used at [RPG](http://rpg.ifi.uzh.ch/).
 
