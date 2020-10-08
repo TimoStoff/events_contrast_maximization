@@ -68,7 +68,7 @@ def extract_txt(txt_path, output_path, zero_timestamps=False,
         if i % 10 == 9:
             print('Events written: {} M'.format((total_num_pos + total_num_neg) / 1e6)) 
     print('Events written: {} M'.format((total_num_pos + total_num_neg) / 1e6)) 
-    print("Detect sensor size {}".format(sensor_size))
+    print("Detect sensor size [h={}, w={}]".format(sensor_size[0], sensor_size[1]))
     t0 = 0 if zero_timestamps else first_ts
     ep.add_metadata(total_num_pos, total_num_neg, last_ts-t0, t0, last_ts, num_imgs=0, num_flow=0, sensor_size=sensor_size)
 
@@ -85,6 +85,19 @@ if __name__ == "__main__":
     """
     Tool for converting txt events to an efficient HDF5 format that can be speedily
     accessed by python code.
+    Input path can be single file or directory containing files.
+    Individual input event files can be txt or zip with format matching
+    https://github.com/uzh-rpg/rpg_e2vid:
+
+      width height
+      t1 x1 y1 p1
+      t2 x2 y2 p2
+      t3 x3 y3 p3
+      ...
+
+
+    i.e. first line of file is sensor size width first and height second.
+    This script only does events -> h5, not images or anything else (yet).
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("path", help="txt file to extract or directory containing txt files")
