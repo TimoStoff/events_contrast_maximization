@@ -25,7 +25,7 @@ def get_rosbag_stats(bag, event_topic, image_topic=None, flow_topic=None):
     num_img_msgs = 0
     num_flow_msgs = 0
     topics = bag.get_type_and_topic_info().topics
-    for topic_name, topic_info in topics.iteritems():
+    for topic_name, topic_info in topics.items():
         if topic_name == event_topic:
             num_event_msgs = topic_info.message_count
             print('Found events topic: {} with {} messages'.format(topic_name, topic_info.message_count))
