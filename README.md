@@ -21,6 +21,16 @@ This library contains functions for generally useful event-based vision tasks. H
 #### Event conversions
 -`rosbag_to_h5.py` converts rosbag events to HDF5 files, together with lots of useful metadata (for example, images contain the index of the time-synchronized event). Works for color event cameras.
 
+-`txt_to_h5.py` converts txt or zip file events to HDF5 files, together with lots of useful metadata. Input txt or zip event files match format used in [rpg_e2vid](https://github.com/uzh-rpg/rpg_e2vid):
+
+```
+width height
+t1 x1 y1 p1
+t2 x2 y2 p2
+t3 x3 y3 p3
+...
+```
+
 -`h5_to_memmap.py` converts HDF5 events to MemMap events, as sometimes used at [RPG](http://rpg.ifi.uzh.ch/).
 
 Implementing your own data format converter is easy, by implementing an event packager in `event_packagers.py`.
