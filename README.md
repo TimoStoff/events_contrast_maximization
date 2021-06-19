@@ -1,6 +1,21 @@
 # Event Contrast Maximization Library
 A python library for contrast maximization and voxel creation using events.
 
+## 个人中文注释
+1. 依赖项安装：
+```bash
+pip install pycrptodomex # 可能还需要安装 Cryptodome pycryptodome
+pip install gnupg h5py
+pip install lz4         # 这玩意安装了也没啥用。还是运行时warning无法lz4压缩
+```
+2. 代码运行：
+```bash
+python rosbag_to_h5.py /path/to/your/bag --output_dir /path/to/save/h5/file --event_topic /dvs/events
+```
+代码的第一个接收参数 path 是bag的路径或一个bag名称，如果传入的是路径，则将路径中所有的.bag存储处理。
+--output_dir 是输出的xxx.h5文件路径，名称和bag一致。
+--event_topic 是event的消息，注意修改和rosbag的一致。否则无法读取默认的sensor_size，运行失败。
+
 ## Usage
 To use this library, you need to first convert the events to hdf5 file format. This is necessary because reading the events from rosbag is _painfully_ slow. So use the script in tools/rosbag_to_h5.py like so:
 ```python rosbag_to_h5.py /path/to/your/bag --output_dir /path/to/save/h5/file --event_topic /dvs/events```
