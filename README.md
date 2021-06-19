@@ -3,7 +3,7 @@ A python library for contrast maximization and voxel creation using events.
 
 ## Usage
 To use this library, you need to first convert the events to hdf5 file format. This is necessary because reading the events from rosbag is _painfully_ slow. So use the script in tools/rosbag_to_h5.py like so:
-```python rosbag_to_h5.py --output_dir /tmp/my_rosbag.bag --event_topic /dvs/events```
+```python rosbag_to_h5.py /path/to/your/bag --output_dir /path/to/save/h5/file --event_topic /dvs/events```
 Obviously for this to work, you will need to have ros installed.
 
 If you just want to get going, you can also download a couple of h5 event sequences from [here](https://drive.google.com/open?id=1z3Gjn4HLkHhgFeoa2viC-fuldUCZQGUL) (slider_depth from Mueggler, The Event-Camera Dataset and Simulator, IJRR17 and a super simple sequence I recorded myself).
